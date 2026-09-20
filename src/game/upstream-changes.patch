@@ -1,0 +1,395 @@
+--- a/src/common.h
++++ b/src/common.h
+@@ -60,6 +60,7 @@
+ #include "types.h"
+ #include "proto.h"
+ #include "data.h"
++#include "game_memory.h"
+ 
+ #ifndef MAX
+ #define MAX(a,b) ((a)>(b)?(a):(b))
+--- a/src/config.h
++++ b/src/config.h
+@@ -396,3 +396,6 @@
+ 
+ 
+ #endif
++
++#include "picocalc_features.h"
++#undef USE_COPYPROT
+--- a/src/proto.h
++++ b/src/proto.h
+@@ -729,3 +729,6 @@
+ void init_midi(void);
+ void midi_callback(void *userdata, Uint8 *stream, int len);
+ void play_midi_sound(sound_buffer_type* buffer);
++
++/* PicoCalc partial presentation during the title wipe. */
++void game_present_columns(int left, int right);
+--- a/src/seg000.c
++++ b/src/seg000.c
+@@ -19,6 +19,7 @@
+ */
+ 
+ #include "common.h"
++#include "pc_store.h"
+ #include <setjmp.h>
+ #define _USE_MATH_DEFINES
+ #include <math.h>
+@@ -565,7 +566,7 @@
+ 				start_recording();
+ 			} else
+ 			#endif
+-			if (key == (SDL_SCANCODE_L | WITH_CTRL)) { // Ctrl+L
++			if (key == (SDL_SCANCODE_L | WITH_CTRL) || key == SDL_SCANCODE_F4) { // load
+ 				if (!load_game()) return 0;
+ 			} else {
+ 				start_level = custom->first_level; // 1
+@@ -616,7 +617,13 @@
+ 				is_restart_level = 1;
+ 			}
+ 		break;
+-		case SDL_SCANCODE_G | WITH_CTRL: // Ctrl+G
++		case SDL_SCANCODE_F4:
++        case SDL_SCANCODE_L | WITH_CTRL:
++            if (load_game()) { stop_sounds(); start_game(); }
++            else { display_text_bottom("NO SAVED GAME"); text_time_total=text_time_remaining=24; }
++        break;
++        case SDL_SCANCODE_F2:
++        case SDL_SCANCODE_G | WITH_CTRL: // Ctrl+G
+ 			// CusPoP: first and last level where saving is allowed
+ //			if (current_level > 2 && current_level < 14) { // original
+ 			if (current_level >= custom->saving_allowed_first_level && current_level <= custom->saving_allowed_last_level) {
+@@ -1801,7 +1808,7 @@
+ 		control_x = CONTROL_HELD_RIGHT;
+ 	}
+ 	
+-	if(key_states[SDL_SCANCODE_LSHIFT] & key_state || key_states[SDL_SCANCODE_RSHIFT] & key_state || key_states[key_action] & key_state)
++	if(key_states[SDL_SCANCODE_LSHIFT] & key_state || key_states[SDL_SCANCODE_RSHIFT] & key_state || key_states[key_action] & key_state || key_states[SDL_SCANCODE_F5] & key_state)
+ 		control_shift = CONTROL_HELD;
+ 	else
+ 		control_shift = CONTROL_RELEASED;
+@@ -2042,6 +2049,9 @@
+ 
+ // seg000:1BB3
+ void transition_ltr() {
++	// Synchronize once; subsequent presents contain only newly revealed columns.
++	update_screen();
++	short presented = 0;
+ 	rect_type rect;
+ 	rect.top = 0;
+ 	rect.bottom = 200;
+@@ -2065,7 +2075,9 @@
+ 			--overshoot;
+ 			continue; // On slow systems (e.g. Raspberry Pi), allow the animation to catch up, before refreshing the screen.
+ 		}
++		game_present_columns(presented, rect.right - 2);
+ 		idle(); // modified
++		presented = rect.right - 2;
+ 		do_paused();
+ 		// Add an appropriate delay until the next frame, so that the animation isn't instantaneous on fast CPUs.
+ 		for (;;) {
+@@ -2080,6 +2092,11 @@
+ 			}
+ 		}
+ 
++	}
++	// Catch-up can skip the last refresh, but must not omit the final columns.
++	if (presented < 320) {
++		game_present_columns(presented, 320);
++		update_screen();
+ 	}
+ }
+ 
+@@ -2143,69 +2160,24 @@
+ }
+ 
+ // seg000:1D45
+-void save_game() {
+-	word success = 0;
+-	char custom_save_path[POP_MAX_PATH];
+-	const char* save_path = get_save_path(custom_save_path, sizeof(custom_save_path));
+-
+-	FILE* handle = fopen(save_path, "wb");
+-	if (handle != NULL) {
+-		if (fwrite(&rem_min, 1, 2, handle) != 2) goto error;
+-		if (fwrite(&rem_tick, 1, 2, handle) != 2) goto error;
+-		if (fwrite(&current_level, 1, 2, handle) != 2) goto error;
+-		if (fwrite(&hitp_beg_lev, 1, 2, handle) != 2) goto error;
+-		success = 1;
+-		error:
+-		if (!success) {
+-			printf("save_game: fwrite: Can not write to: %s\n", save_path);
+-		}
+-		fclose(handle);
+-		if (!success) {
+-			remove(save_path);
+-		}
+-	} else {
+-		perror("save_game: fopen");
+-		printf("Tried to open for writing: %s\n", save_path);
+-	}
+-
+-	if (success) {
+-		display_text_bottom("GAME SAVED");
+-	} else {
+-		display_text_bottom("UNABLE TO SAVE GAME");
+-		//play_sound_from_buffer(&sound_cant_save);
+-	}
+-	text_time_remaining = 24;
++void save_game(void) {
++    if (current_level < 1 || current_level > 14 || is_cutscene) return;
++    uint16_t values[4] = {(uint16_t)rem_min,(uint16_t)rem_tick,(uint16_t)current_level,(uint16_t)hitp_beg_lev};
++    byte bytes[8];
++    for(unsigned i=0;i<4;i++){bytes[2*i]=values[i];bytes[2*i+1]=values[i]>>8;}
++    bool saved=PC_StoreWrite(PC_STORE_SAVE,bytes,sizeof bytes);
++    display_text_bottom(saved ? (PC_StoreLastBackend()==PC_STORE_SD ? "GAME SAVED (SD)" : "GAME SAVED (FLASH)") : "SAVE FAILED");
++    text_time_total=text_time_remaining=24;
+ }
+ 
+ // seg000:1E38
+-short load_game() {
+-	word success = 0;
+-	char custom_save_path[POP_MAX_PATH];
+-	const char* save_path = get_save_path(custom_save_path, sizeof(custom_save_path));
+-
+-	FILE* handle = fopen(save_path, "rb");
+-	if (handle != NULL) {
+-		if (fread(&rem_min, 1, 2, handle) != 2) goto error;
+-		if (fread(&rem_tick, 1, 2, handle) != 2) goto error;
+-		if (fread(&start_level, 1, 2, handle) != 2) goto error;
+-		if (fread(&hitp_beg_lev, 1, 2, handle) != 2) goto error;
+-#ifdef USE_COPYPROT
+-		if (enable_copyprot && custom->copyprot_level > 0) {
+-			custom->copyprot_level = start_level;
+-		}
+-#endif
+-		success = 1;
+-		dont_reset_time = 1;
+-		error:
+-		if (!success) {
+-			printf("load_game: fread: Can not read from: %s\n", save_path);
+-		}
+-		fclose(handle);
+-	} else {
+-		perror("load_game: fopen");
+-		printf("Tried to open for reading: %s\n", save_path);
+-	}
+-	return success;
++short load_game(void) {
++    byte bytes[8];uint16_t values[4];
++    if(!PC_StoreRead(PC_STORE_SAVE,bytes,sizeof bytes)) return 0;
++    for(unsigned i=0;i<4;i++)values[i]=bytes[2*i]|(uint16_t)bytes[2*i+1]<<8;
++    if(values[0]>32767 || values[1]>720 || values[2]<1 || values[2]>14 || values[3]<1 || values[3]>10)return 0;
++    rem_min=values[0];rem_tick=values[1];start_level=values[2];hitp_beg_lev=values[3];
++    dont_reset_time=1;return 1;
+ }
+ 
+ // seg000:1F02
+@@ -2318,7 +2290,7 @@
+ 			color.a = 0xFF;
+ 		}
+ 		if (NULL != chtab_title40) {
+-			SDL_SetPaletteColors(chtab_title40->images[0]->format->palette, &color, 14, 1);
++			SDL_SetPaletteColors(chtab_title40->images[0], &color, 14, 1);
+ 		}
+ 	} else if (graphics_mode == gmEga || graphics_mode == gmTga) {
+ 		// ...
+@@ -2427,45 +2399,7 @@
+ 		"\n"
+ 		"Press any key to continue...";
+ 
+-void show_splash() {
+-	if (!enable_info_screen || start_level >= 0) return;
+-	current_target_surface = onscreen_surface_;
+-	draw_rect(&screen_rect, color_0_black);
+-	show_text_with_color(&splash_text_1_rect, halign_center, valign_middle, splash_text_1, color_15_brightwhite);
+-	show_text_with_color(&splash_text_2_rect, halign_center, valign_top, splash_text_2, color_7_lightgray);
+-
+-#ifdef USE_TEXT // Don't wait for a keypress if there is no text for the user to read.
+-	int key = 0;
+-	do {
+-		idle();
+-		key = key_test_quit();
+-
+-		bool joy_input = 0;
+-		for (int i = 0; i < JOYINPUT_NUM; i++) {
+-			if (joy_button_states[i] & KEYSTATE_HELD) {
+-				joy_input = 1;
+-				break;
+-			}
+-		}
+-		if (joy_input) {
+-			for (int i = 0; i < JOYINPUT_NUM; i++) {
+-				joy_button_states[i] = 0;
+-			}
+-			key_states[SDL_SCANCODE_LSHIFT] |= KEYSTATE_HELD; // close the splash screen using the gamepad
+-		}
+-		
+-		delay_ticks(1);
+-
+-	} while(key == 0 && !(key_states[SDL_SCANCODE_LSHIFT] & KEYSTATE_HELD || key_states[SDL_SCANCODE_RSHIFT] & KEYSTATE_HELD));
+-
+-	if ((key & WITH_CTRL) || (enable_quicksave && key == SDL_SCANCODE_F9) || (enable_replay && key == SDL_SCANCODE_TAB)) {
+-		extern int last_key_scancode; // defined in seg009.c
+-		last_key_scancode = key; // can immediately do Ctrl+L, etc from the splash screen
+-	}
+-	key_states[SDL_SCANCODE_LSHIFT] &= ~KEYSTATE_HELD; // don't immediately start the game if Shift was pressed!
+-	key_states[SDL_SCANCODE_RSHIFT] &= ~KEYSTATE_HELD;
+-#endif
+-}
++void show_splash(void) {}
+ 
+ const char* get_writable_file_path(char* custom_path_buffer, size_t max_len, const char* file_name) {
+ 	// If the SDLPOP_SAVE_PATH environment variable is set, put all saves into the directory it points to.
+--- a/src/seg001.c
++++ b/src/seg001.c
+@@ -19,6 +19,7 @@
+ */
+ 
+ #include "common.h"
++#include "pc_store.h"
+ 
+ #ifndef _MSC_VER // unistd.h does not exist in the Windows SDK.
+ #include <unistd.h>
+@@ -774,32 +775,35 @@
+ }
+ 
+ // seg001:0F17
+-void hof_write() {
+-	char custom_hof_path[POP_MAX_PATH];
+-	const char* hof_path = get_hof_path(custom_hof_path, sizeof(custom_hof_path));
+-	FILE* handle = fopen(hof_path, "wb");
+-	if (handle == NULL ||
+-		fwrite(&hof_count, 1, 2, handle) != 2 ||
+-		fwrite(&hof, 1, sizeof(hof), handle) != sizeof(hof))
+-		perror(hof_path);
+-	if (handle != NULL)
+-		fclose(handle);
++void hof_write(void) {
++    byte data[PC_STORE_HOF_SIZE];
++    data[0]=hof_count;data[1]=hof_count>>8;
++    for(unsigned i=0;i<MAX_HOF_COUNT;i++) {
++        byte *record=data+2+i*29;
++        memcpy(record,hof[i].name,25);
++        record[25]=(word)hof[i].min; record[26]=(word)hof[i].min>>8;
++        record[27]=(word)hof[i].tick; record[28]=(word)hof[i].tick>>8;
++    }
++    if(!PC_StoreWrite(PC_STORE_HOF,data,sizeof data)) {
++        display_text_bottom("SCORE SAVE FAILED");text_time_total=text_time_remaining=24;
++    }
+ }
+ 
+ // seg001:0F6C
+-void hof_read() {
+-	hof_count = 0;
+-	char custom_hof_path[POP_MAX_PATH];
+-	const char* hof_path = get_hof_path(custom_hof_path, sizeof(custom_hof_path));
+-	FILE* handle = fopen(hof_path, "rb");
+-	if (handle == NULL)
+-		return;
+-	if (fread(&hof_count, 1, 2, handle) != 2 ||
+-		fread(&hof, 1, sizeof(hof), handle) != sizeof(hof)) {
+-		perror(hof_path);
+-		hof_count = 0;
+-	}
+-	fclose(handle);
++void hof_read(void) {
++    byte data[PC_STORE_HOF_SIZE];hof_count=0;memset(hof,0,sizeof hof);
++    if(!PC_StoreRead(PC_STORE_HOF,data,sizeof data))return;
++    unsigned count=data[0]|(unsigned)data[1]<<8;
++    if(count>MAX_HOF_COUNT)return;
++    for(unsigned i=0;i<count;i++) {
++        const byte *record=data+2+i*29;
++        unsigned minutes=record[25]|(unsigned)record[26]<<8;
++        unsigned ticks=record[27]|(unsigned)record[28]<<8;
++        if(minutes>32767 || ticks>720){memset(hof,0,sizeof hof);return;}
++        memcpy(hof[i].name,record,25); hof[i].name[24]=0;
++        hof[i].min=minutes; hof[i].tick=ticks;
++    }
++    hof_count=count;
+ }
+ 
+ // seg001:0FC3
+--- a/src/seg006.c
++++ b/src/seg006.c
+@@ -597,7 +597,7 @@
+ 				//for some reason, this works, but normal pointer cast crashes (?)
+ 				Char.curr_seq = SDL_SwapLE16(command1 | (command2<<8));
+ 				#else
+-				Char.curr_seq = SDL_SwapLE16(*(const word*)(SEQTBL_0 + Char.curr_seq));
++				Char.curr_seq = (word)(SEQTBL_0[Char.curr_seq] | (word)SEQTBL_0[Char.curr_seq + 1] << 8);
+ 				#endif
+ 				break;
+ 			case SEQ_UP: // up
+--- a/src/seg008.c
++++ b/src/seg008.c
+@@ -19,6 +19,7 @@
+ */
+ 
+ #include "common.h"
++#include "game_port.h"
+ 
+ // data:27E0
+ add_table_type ptr_add_table = add_backtable;
+@@ -956,36 +957,7 @@
+ }
+ 
+ 
+-SDL_Surface* hflip(SDL_Surface* input) {
+-	int width = input->w;
+-	int height = input->h;
+-
+-	// The simplest way to create a surface with same format as input:
+-	SDL_Surface* output = SDL_ConvertSurface(input, input->format, 0);
+-	SDL_SetSurfacePalette(output, input->format->palette);
+-	// The copied image will be overwritten anyway.
+-	if (output == NULL) {
+-		sdlperror("hflip: SDL_ConvertSurface");
+-		quit(1);
+-	}
+-
+-	SDL_SetSurfaceBlendMode(input, SDL_BLENDMODE_NONE);
+-	// Temporarily turn off alpha and colorkey on input. So we overwrite the output image.
+-	SDL_SetColorKey(input, SDL_FALSE, 0);
+-	SDL_SetColorKey(output, SDL_FALSE, 0);
+-	SDL_SetSurfaceAlphaMod(input, 255);
+-
+-	for (int source_x = 0, target_x = width-1; source_x < width; ++source_x, --target_x) {
+-		SDL_Rect srcrect = {source_x, 0, 1, height};
+-		SDL_Rect dstrect = {target_x, 0, 1, height};
+-		if (SDL_BlitSurface(input/*32*/, &srcrect, output, &dstrect) != 0) {
+-			sdlperror("hflip: SDL_BlitSurface");
+-			quit(1);
+-		}
+-	}
+-
+-	return output;
+-}
++SDL_Surface* hflip(SDL_Surface* input) { return game_mirror(input); }
+ 
+ 
+ // seg008:140C
+--- a/src/types.h
++++ b/src/types.h
+@@ -22,7 +22,7 @@
+ #define TYPES_H
+ 
+ #define STB_VORBIS_HEADER_ONLY
+-#include "stb_vorbis.c"
++typedef struct stb_vorbis stb_vorbis; /* OGG disabled in embedded build */
+ 
+ #if !defined(_MSC_VER)
+ # include <SDL2/SDL.h>
+@@ -333,9 +333,11 @@
+ 	sword_2_drawn = 2
+ };
+ 
++#pragma pack(push,1) /* embedded in packed custom_options_type */
+ typedef struct auto_move_type {
+ 	short time,move;
+ } auto_move_type;
++#pragma pack(pop)
+ 
+ /* obj_type:
+ 	0 = Kid, princess, vizier

@@ -1,0 +1,204 @@
+# Prince of Persia / SDLPoP for PicoCalc with Pico 2 / Pico 2 W
+
+A PicoCalc game port based on SDLPoP commit `3c5add5fb7f83d4ceb542823ab66d00146c4271b`, with RGB565 LCD output, DMA audio, DBOPL music and SD/flash persistence.
+
+**This is a source-only project. Original DAT files, generated game assets and prebuilt firmware are not included.** You must obtain the original game data yourself and compile the firmware.
+
+## Prepare the game data
+
+Use a complete English VGA DOS DAT set from Prince of Persia **1.0, 1.1, 1.3 or 1.4**. These sets have passed automated game, audio and firmware-build checks. Do not mix files from different releases. Other releases and modified data sets have not been validated.
+
+1. Obtain the original DAT files from your own copy of the game or another source you are entitled to use.
+2. Create `PrinceFiles` in the project root if it does not exist. The directory contains its own [file checklist](PrinceFiles/README.md).
+3. Copy the DAT files directly into that folder, keeping their uppercase filenames. Do not put them in an extra subfolder. The DOS executable is not needed.
+
+The build requires these files:
+
+```text
+PRINCE.DAT   KID.DAT      VDUNGEON.DAT  VPALACE.DAT
+GUARD.DAT    GUARD1.DAT   GUARD2.DAT    FAT.DAT
+SKEL.DAT     VIZIER.DAT   SHADOW.DAT    PV.DAT
+TITLE.DAT    LEVELS.DAT   MIDISND1.DAT  MIDISND2.DAT
+DIGISND1.DAT DIGISND2.DAT DIGISND3.DAT  IBM_SND1.DAT
+IBM_SND2.DAT
+```
+
+Additional EGA/CGA/MT-32 files may stay in the folder but are not embedded. The build never downloads game data. Original game assets retain their original ownership and are not covered by this project's source-code licenses.
+
+## Build
+
+Requirements: PicoCalc with a Pico 2 or Pico 2 W, **Pico SDK** (tested: 2.2.0 and 2.3.1), Arm GNU Toolchain (tested: 13.3.Rel1 and 15.2.Rel1), CMake 3.20 or newer, Ninja and Python 3. Asset generation uses only the Python standard library.
+
+### Select the board
+
+The port does not use Wi-Fi, Bluetooth or the CYW43 library, so the Pico 2 without wireless is also an intended target. Select the matching SDK board when configuring:
+
+| Installed board | CMake option |
+| --- | --- |
+| Pico 2 W | `-DPICO_BOARD=pico2_w` (default) |
+| Pico 2 | `-DPICO_BOARD=pico2` |
+
+The commands below use `pico2_w`; replace it with `pico2` for the non-wireless board. When switching boards, use a new build directory or configure with `--fresh` (CMake 3.24+) and reapply your options. Physical validation to date concerns the Pico 2 W; the Pico 2 has not yet been tested on hardware for this port.
+
+### Windows with the Raspberry Pi Pico VS Code installation
+
+From the project root in Command Prompt, after populating `PrinceFiles`:
+
+```bat
+"%USERPROFILE%\.pico-sdk\cmake\v4.3.4\bin\cmake.exe" -S . -B build -G Ninja -DPICO_BOARD=pico2_w -DCMAKE_BUILD_TYPE=Release
+"%USERPROFILE%\.pico-sdk\cmake\v4.3.4\bin\cmake.exe" --build build --target prince_picocalc -j4
+```
+
+Adjust the CMake version in the command to your installation. The optional `%USERPROFILE%/.pico-sdk/cmake/pico-vscode.cmake` helper is loaded before SDK import, with its required `USERHOME` variable. Defaults are SDK/picotool 2.3.1 and toolchain 15_2_Rel1; override `sdkVersion`, `picotoolVersion` and `toolchainVersion` with `-D` as needed. This locates the installed native picotool instead of trying to compile it with a missing Windows host compiler.
+
+An explicit `-DPICO_SDK_PATH=...` takes precedence over the `PICO_SDK_PATH` environment variable, which takes precedence over the helper default. To recover from an old CMake configuration, add `--fresh` to the configure command (CMake 3.24+). Reapply any custom `-D` options, including `PRINCE_FILES`.
+
+### Linux or a manually installed SDK
+
+Make the Arm toolchain, CMake, Ninja and Python available in PATH, then run:
+
+```sh
+export PICO_SDK_PATH=/path/to/pico-sdk
+cmake -S . -B build -G Ninja -DPICO_BOARD=pico2_w -DCMAKE_BUILD_TYPE=Release -DPRINCE_USE_PICO_VSCODE=OFF
+cmake --build build --target prince_picocalc -j4
+```
+
+Install the SDK's required submodules. Use a compatible native picotool installation, or provide a native C/C++ compiler if the SDK builds picotool from source. The native picotool must run on your computer; `arm-none-eabi-gcc` is for the firmware.
+
+The output is **`build/prince_picocalc.uf2`**. The linker map is generated alongside it. Neither is distributed with this project.
+
+CMake converts your DAT files into immutable C/header assets under `build/src/generated/`. Changed DAT files trigger regeneration. Missing or invalid input stops the build. Use `-DPRINCE_FILES=/absolute/path/to/DATs` to choose another data directory. PCM sound formats are detected automatically.
+
+The game arena reserves 164 KiB; core 0 has a 32 KiB stack and core 1 has 4 KiB. See `docs/BUILD_COMPATIBILITY.md` for the SDK/compiler memory checks.
+
+## Install the firmware you built
+
+For **PicoCalc UF2 Loader 2.5**, copy `build/prince_picocalc.uf2` to `/pico2-apps/` on the SD card and select it in the loader. Alternatively, use BOOTSEL and copy the UF2 to the Pico's USB mass-storage drive.
+
+To resume the installed game, power on normally or select its loader entry in **square brackets**. Selecting the UF2 file again reinstalls it and clears the flash fallback. **SD saves and scores survive firmware installation.**
+
+All game graphics, levels and sounds are embedded when compiling. Do not copy DAT files to the PicoCalc SD card for runtime loading: the game uses that card only for scores and the saved game.
+
+## Controls
+
+| Key | Action |
+|---|---|
+| Enter | Start the game |
+| F1 | Toggle 4:3 / 16:10; default 4:3 |
+| F2 | Save game, preferring SD |
+| F3 | Toggle Megahit cheats; disabled on boot |
+| F4 | Load saved game, including from the title screen |
+| Shift, 1 or F5 | Action: grab, pick up items, fight, walk carefully |
+| Left / Right or I / P | Move |
+| Up or 9 | Jump / climb |
+| Down or O | Crouch / drop |
+| 8 / 0 | Up+Left / Up+Right |
+| Shift / 1 / F5 + Left/Right or I/P | Walk carefully |
+| Esc | Pause; another key resumes |
+| Space | Show remaining time |
+| Ctrl+A | Restart level |
+| Ctrl+R | Return to title |
+| Ctrl+S | Toggle sound |
+| Ctrl+G / Ctrl+L | Save / load, in addition to F2/F4 |
+
+There is no help overlay. F1 and F3 do not skip the title sequence. F5 and 1 are independent action inputs, not text modifiers. Releasing one action key does not cancel another held action key.
+
+### Cheat keys after F3
+
+| Key | Cheat |
+|---|---|
+| L | Next level, retaining the original level-skip time adjustment |
+| R | Revive after death |
+| K | Kill the guard, except a skeleton |
+| S | Restore one health point |
+| T | Increase maximum health |
+| = / - | Add / subtract one minute |
+| W | Feather fall |
+| G | Toggle upside-down view |
+| D | Toggle blind mode |
+| H / J | View the room to the left / right |
+| U / N | View the room above / below |
+| B | Return the view to the prince's room |
+| C | Show room and direct neighbors |
+| V | Show additional neighboring rooms |
+
+Room-view cheats move the view, not the prince. F3 disables the additional mappings again. Original Ctrl shortcuts remain available. SDLPoP's optional debug timer displays are disabled.
+
+High-score names: hold either physical Shift key for uppercase letters; release it for lowercase.
+
+## SD-first storage
+
+The game creates `/Prince` automatically on a supported, writable FAT32 card. It alternates between:
+
+- `/Prince/STATE0.BIN`
+- `/Prince/STATE1.BIN`
+
+Each checksummed snapshot contains both the six-entry high-score table and the saved game. Keep both files when making a backup. They are the port's binary snapshot format, not standalone DOS PRINCE.SAV/PRINCE.HOF files.
+
+Successful saves report **GAME SAVED (SD)** or **GAME SAVED (FLASH)**. Flash is written only when SD saving fails: for example, no card, unsupported filesystem, read/write failure, read-only file, or insufficient space. FAT32 with an MBR or without a partition table is supported; GPT, exFAT, FAT16 and active-only/non-mirrored FAT configurations are not supported by this driver.
+
+Flash fallback changes are reconciled back onto SD when the card becomes usable. Scores and game saves have separate fallback revision markers, so an older flash score does not overwrite a newer SD-only score when a game save falls back to flash. Valid snapshots are checked before use and verified after writing. Alternating files protect the previous snapshot against an incomplete data write; FAT32 metadata and the card controller are not transactional. Do not remove the card or power during a save.
+
+The implementation adapts Blair Leduc's `sdcard.c/.h` and `fat32.c/.h`, with fixes documented in `docs/INTEGRATION.md`. SPI0 uses GPIO16–19; card detect is active-low GPIO22. The LCD remains on SPI1. Storage runs on core 0; no FAT operations run in an interrupt callback.
+
+### Saved-game behavior
+
+F2 saves in levels 1–14. It preserves the original game's level-start save semantics: level, remaining time and health capacity at the start of that level. **Loading restarts the saved level; it does not restore the exact room, position or animation frame.** There is one save slot. Titles and cutscenes are not saved. The high-score table is saved when the original game updates it.
+
+The flash fallback survives reset and power-off. Reinstalling this UF2 clears only the flash journal; SD files remain intact. To clear all progress, delete the two files under `/Prince` and reinstall the UF2, otherwise a remaining flash fallback can restore them.
+
+## Source layout
+
+| Path | Contents |
+|---|---|
+| `PrinceFiles/` | Your own original DOS DAT files and a file checklist; only the checklist is tracked by Git |
+| `src/game/` | Game adapter, entry point, allocator and linker script |
+| `src/game/upstream/` | Adapted SDLPoP core |
+| `src/game/compat/` | Minimal SDL2 source compatibility layer |
+| `src/include/` | Shared public and storage interface headers |
+| `src/port/` | Portable graphics, input, assets, FAT32 and storage policy |
+| `src/audio/` | MIDI/OPL2 mixer and PCM/WAV playback |
+| `src/platform/picocalc/` | LCD, keyboard, SD SPI, audio DMA and flash hardware |
+| `src/platform/host/` | Host test backends |
+| `src/third_party/dbopl/` | OPL2 emulation |
+| `src/tools/` | DAT converter |
+| `src/tests/` | Game, driver, codec, loader and persistence tests |
+| `docs/` | Integration notes, build compatibility and Pico SDK license |
+
+All supplied C/header files are under `src/`. Generated asset C/header files go under `<build>/src/generated/`, not into the source tree.
+
+## Tests
+
+Run asset-dependent tests only after providing your own DAT files:
+
+```sh
+python3 src/tests/test_dat.py
+sh src/tests/run_store_tests.sh
+sh src/tests/run_sd_tests.sh
+sh src/tests/run_hardware_logic_tests.sh
+sh src/tests/run_video_tests.sh
+python3 src/tests/run_game_tests.py
+sh src/tests/run_sound_dat_tests.sh /absolute/path/to/DATs 1
+python3 src/tests/check_firmware.py build/prince_picocalc.elf
+sh src/tests/run_loader25_tests.sh build/prince_picocalc.uf2
+```
+
+For the sound test, use layout `1` for DOS 1.0/1.1 and `2` for 1.3/1.4. Host tests require GCC, CMake and Ninja. For host-game tests with an external DAT folder, first configure `build-host-game` with `-DPRINCE_HOST=ON -DPRINCE_FILES=/absolute/path/to/DATs`. The DAT parser unit test uses `PrinceFiles`. ELF inspection also needs `arm-none-eabi-nm` and `arm-none-eabi-objdump` in PATH. SD tests use disposable disk images, not physical drives.
+
+Automated checks do not constitute a complete playthrough or hardware validation of every feature. Desktop menus, replays, arbitrary-position quicksaves and smooth palette fades are not included.
+
+## Authors
+
+PicoCalc port maintained by Karl Wintermann.
+
+## Acknowledgements
+
+- Thank you to **Jordan Mechner and the original Prince of Persia development team** for a wonderful game that remains a joy to play.
+- Thank you to the **[SDLPoP developers](https://github.com/NagyD/SDLPoP)** for their outstanding reverse-engineering work and continued development, which made this port possible.
+- Thank you to **[Blair Leduc](https://github.com/BlairLeduc/picocalc-text-starter)** for `picocalc-text-starter`, the source/reference for LCD, keyboard/southbridge, SD-card and FAT32 driver work used in this port.
+- Thank you to the **[DOSBox developers](https://www.dosbox.com/)** for the DBOPL emulator, and to the **[Chocolate Doom developers](https://github.com/chocolate-doom/chocolate-doom/)** for its C port. The code here was compared with Chocolate Doom 2.2.0 and includes local streaming-reset and portability changes.
+- Thank you to **ChatGPT** for the extensive hands-on assistance with implementation, debugging, testing and documentation throughout this port.
+
+## Licenses and provenance
+
+See `COPYING` for the SDLPoP-derived GPL-3.0-or-later game code, `COPYING.DBOPL` for DBOPL's GPL-2.0-or-later license, and `COPYING.PICOCALC` for Blair Leduc's MIT license. Original copyright notices are retained. Component details and local modifications are recorded in `ASSET_SOURCES.md`; original game data are not redistributed.

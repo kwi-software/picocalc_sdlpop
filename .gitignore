@@ -1,0 +1,53 @@
+# Original game data are supplied locally, never committed.
+/[Pp][Rr][Ii][Nn][Cc][Ee][Ff][Ii][Ll][Ee][Ss]/*
+!/PrinceFiles/README.md
+*.[dD][aA][tT]
+
+# CMake/Ninja build trees and generated assets.
+build*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+install_manifest.txt
+Makefile
+makefile
+_deps/
+Testing/
+**/src/generated/
+game_assets.c
+game_assets.h
+game_assets.json
+
+# Compiler, linker and firmware output.
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.elf
+*.uf2
+*.bin
+*.hex
+*.map
+*.dis
+*.d
+*.pdb
+*.ilk
+/firmware/
+
+# Local editor/Python files.
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
