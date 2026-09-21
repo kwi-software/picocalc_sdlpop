@@ -7,13 +7,20 @@
 #include <string.h>
 static uint8_t first[8], second[8], arrows=255, reg;
 static unsigned matrix_reads, arrow_reads;
-static bool fail_confirm;
+static bool fail_confirm,fail_status,fail_write;
+static uint8_t status_value;
 int i2c_write_timeout_us(void *bus,unsigned addr,const uint8_t *p,size_t n,bool stop,unsigned timeout) {
-    (void)bus;(void)stop;(void)timeout;assert(addr==0x1f && n==1);reg=p[0];return n;
+    (void)bus;(void)stop;(void)timeout;assert(addr==0x1f && (n==1 || n==2));
+    if(n==2){assert((p[0]&0x80)!=0);if(fail_write)return -2;status_value=p[1];
+        if((p[0]&0x7f)==SB_REG_BKL){status_value=(status_value/16)*16;if(status_value<16)status_value=16;if(status_value>240)status_value=240;}
+        else {status_value=(status_value/32)*32;if(status_value>240)status_value=0;}}
+    reg=p[0]&0x7f;return n;
 }
 int i2c_read_timeout_us(void *bus,unsigned addr,uint8_t *p,size_t n,bool stop,unsigned timeout) {
     (void)bus;(void)addr;(void)stop;(void)timeout;
-    if(reg==0x0c) {
+    if(reg==SB_REG_BAT || reg==SB_REG_BKL || reg==SB_REG_BK2) {
+        assert(n==2);if(fail_status)return -2; p[0]=reg;p[1]=status_value;
+    } else if(reg==0x0c) {
         assert(n==10);matrix_reads++;
         if(fail_confirm && matrix_reads==2)return -2;
         p[0]=reg;memcpy(p+1,matrix_reads==1?first:second,8);p[9]=255;
@@ -32,6 +39,28 @@ static void read_snapshot(unsigned expected_reads) {
     pc_keyboard_matrix_feed(out,dirs);
 }
 int main(void) {
+    uint8_t value=123;
+    assert(sb_read_status_register(SB_REG_BAT,&value) && value==0);
+    status_value=0x80|75;
+    assert(sb_read_status_register(SB_REG_BAT,&value) && value==(0x80|75));
+    status_value=255;
+    assert(sb_read_status_register(SB_REG_BKL,&value) && value==255);
+    assert(sb_read_status_register(SB_REG_BK2,&value) && value==255);
+    fail_status=true;value=99;
+    assert(!sb_read_status_register(SB_REG_BAT,&value) && value==99 && sb_available());
+    assert(!sb_read_status_register(SB_REG_FIF,&value));
+    fail_status=false;
+    assert(sb_write_backlight_register(SB_REG_BKL,180,&value) && value==176);
+    assert(sb_write_backlight_register(SB_REG_BK2,0,&value) && value==0);
+    assert(sb_write_backlight_register(SB_REG_BK2,16,&value) && value==0);
+    assert(sb_write_backlight_register(SB_REG_BK2,32,&value) && value==32);
+    assert(sb_write_backlight_register(SB_REG_BK2,224,&value) && value==224);
+    assert(!sb_write_backlight_register(SB_REG_BAT,100,&value));
+    fail_write=true;value=99;
+    assert(!sb_write_backlight_register(SB_REG_BKL,50,&value) && value==99 && sb_available());
+    fail_write=false;fail_status=true;
+    assert(!sb_write_backlight_register(SB_REG_BK2,50,&value) && value==99 && sb_available());
+    fail_status=false;
     PC_Event e;PC_InputReset();
     memset(first,255,8);memset(second,255,8);
     /* Each partial scan pattern must leave the title's input queue empty. */

@@ -60,7 +60,7 @@ add_custom_command(OUTPUT "${GENERATED}/game_assets.c" "${GENERATED}/game_assets
 file(GLOB POP_CORE CONFIGURE_DEPENDS src/game/upstream/*.c)
 set(GAME_SOURCES ${POP_CORE} src/game/portable.c src/game/adapter.c src/game/game_memory.c
   "${GENERATED}/game_assets.c"
-  src/port/surface.c src/port/input.c src/port/resources.c src/port/assets.c src/port/game_hooks.c src/port/store.c src/port/storage.c
+  src/port/status.c src/port/surface.c src/port/input.c src/port/resources.c src/port/assets.c src/port/game_hooks.c src/port/store.c src/port/storage.c
   src/audio/mixer.c src/audio/midi.c src/audio/wave.c src/third_party/dbopl/dbopl.c
   src/platform/picocalc/keyboard_matrix.c)
 set(GAME_INCLUDES "${GENERATED}" src/game/compat src/game/upstream src/game src/include

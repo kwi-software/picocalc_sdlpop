@@ -337,3 +337,31 @@ bool sb_read_keyboard_matrix(uint8_t columns[8], uint8_t *arrows) {
     *arrows = combined;
     return true;
 }
+
+/* Read only telemetry registers; never consume keyboard FIFO entries. */
+bool sb_read_status_register(uint8_t reg, uint8_t *value)
+{
+    if (!value || (reg != SB_REG_BAT && reg != SB_REG_BKL && reg != SB_REG_BK2))
+        return false;
+    if (atomic_exchange(&sb_i2c_in_use, true))
+        return false;
+    uint8_t buffer[2];
+    bool ok = sb_write(&reg, 1) == 1 && sb_read(buffer, 2) == 2;
+    if (ok) *value = buffer[1];
+    atomic_store(&sb_i2c_in_use, false);
+    return ok;
+}
+
+bool sb_write_backlight_register(uint8_t reg, uint8_t brightness, uint8_t *actual)
+{
+    if (!actual || (reg != SB_REG_BKL && reg != SB_REG_BK2))
+        return false;
+    if (atomic_exchange(&sb_i2c_in_use, true))
+        return false;
+    uint8_t packet[2] = {reg | SB_WRITE, brightness}, reply[2];
+    bool ok = sb_write(packet, 2) == 2 && sb_write(&reg, 1) == 1 &&
+              sb_read(reply, 2) == 2;
+    if (ok) *actual = reply[1];
+    atomic_store(&sb_i2c_in_use, false);
+    return ok;
+}

@@ -49,3 +49,9 @@ bool sb_reset(uint8_t delay_seconds);
 
 /* BIOS matrix registers: raw physical state, independent of translated FIFO. */
 bool sb_read_keyboard_matrix(uint8_t columns[8], uint8_t *arrows);
+
+/* Checked telemetry read; distinguishes a valid zero from an I2C failure. */
+bool sb_read_status_register(uint8_t reg, uint8_t *value);
+
+/* Set a backlight and read its register back; false on I2C failure. */
+bool sb_write_backlight_register(uint8_t reg, uint8_t brightness, uint8_t *actual);

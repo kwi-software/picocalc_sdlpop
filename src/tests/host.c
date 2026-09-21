@@ -1,4 +1,5 @@
 #include "pc_video_scale.h"
+#include "pc_status.h"
 #include "common.h"
 #include "game_port.h"
 #include "keyboard_matrix.h"
@@ -23,6 +24,15 @@ static void verify_cheats(void);
 static unsigned partial_frames;
 static uint16_t lcd[320*320];
 static int seen_level = -1;
+static unsigned status_reads,status_texts,status_clears,backlight_writes;
+static int status_values[3]={75,180,0};
+int PC_ReadStatusValue(PC_StatusValue field) {status_reads++;return status_values[field];}
+int PC_WriteBacklight(PC_StatusValue field,uint8_t value) {
+  assert(field==PC_STATUS_LCD || field==PC_STATUS_KEYBOARD);
+  if(field==PC_STATUS_LCD){value=(value/16)*16;if(value<16)value=16;if(value>240)value=240;}
+  else {value=(value/32)*32;if(value>240)value=0;}
+  backlight_writes++;status_values[field]=value;return value;
+}
 void PC_Init(void) { PC_InputReset(); }
 void PC_PumpEvents(void) {
   if (pending_release) {
@@ -47,6 +57,27 @@ void PC_PumpEvents(void) {
       {3000,0xa5,1},{3000,'f',1},{3100,'f',3},{3100,0xa5,3},
       {4000,0x81,1},{4000,0x81,3},
       {5000,0xa5,1},{5000,'f',1},{5100,'f',1},{5200,'f',3},{5200,0xa5,3}};
+    while(control_step<sizeof keys/sizeof keys[0] && now/1000>=keys[control_step].ms) {
+      PC_InputFeed(keys[control_step].key,keys[control_step].state);control_step++;
+    }
+  }
+  if (scenario && !strcmp(scenario,"status")) {
+    static const struct {unsigned ms;uint8_t key,state;} keys[]={
+      {1000,9,1},{1100,9,1},{1200,9,3},
+      {2000,9,1},{2000,9,3},{2500,0x81,1},{2500,0x81,3},
+      {3000,9,1},{3000,9,3},{3500,0x81,1},{3500,0x81,3}};
+    while(control_step<sizeof keys/sizeof keys[0] && now/1000>=keys[control_step].ms) {
+      PC_InputFeed(keys[control_step].key,keys[control_step].state);control_step++;
+    }
+  }
+  if (scenario && !strcmp(scenario,"brightness")) {
+    static const struct {unsigned ms;uint8_t key,state;} keys[]={
+      {1000,']',1},{1100,']',1},{1200,']',3},{2000,'[',1},{2000,'[',3},
+      {2500,0xa1,1},{2500,'[',1},{2500,0xa1,3},{2500,'[',3},
+      {3000,0xa1,1},{3000,']',1},{3000,']',3},{3000,0xa1,3},
+      {3500,9,1},{3500,9,3},{4000,9,1},{4000,9,3},
+      {4500,']',1},{4500,']',3},{5000,'[',1},{5000,'[',3},
+      {5500,9,1},{5500,9,3}};
     while(control_step<sizeof keys/sizeof keys[0] && now/1000>=keys[control_step].ms) {
       PC_InputFeed(keys[control_step].key,keys[control_step].state);control_step++;
     }
@@ -117,15 +148,24 @@ void PC_SetRenderDrawColor(uint8_t r, uint8_t g, uint8_t b) {
   (void)b;
 }
 void PC_RenderFillRect(const PC_Rect *r) {
-  assert(!r); /* Only clear when changing aspect, no help overlay. */
+  if(r) {
+    assert(scenario && (!strcmp(scenario,"status") || !strcmp(scenario,"brightness")));
+    assert(r->y>=0 && r->y+r->h<=26);
+    if(r->w==320)status_clears++;
+    return;
+  } /* A full-panel clear is reserved for aspect/filter changes. */
   aspect_clears++;
   memset(lcd,0,sizeof lcd);
 }
-void PC_DrawText(int x, int y, const char *text) {
+void PC_DrawText(int x,int y,const char *text) {
+  (void)x;(void)y;(void)text;assert(!"Unexpected diagnostic text");
+}
+void PC_DrawTextSmall(int x, int y, const char *text) {
   (void)x;
   (void)y;
   (void)text;
-  assert(!"Help must not be rendered");
+  assert(scenario && (!strcmp(scenario,"status") || !strcmp(scenario,"brightness")) && y==7);
+  status_texts++;
 }
 void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *p,
                              unsigned pitch, unsigned h, const PC_VideoFilter *filter) {
@@ -249,6 +289,13 @@ void game_host_frame(void) {
       assert(aspect_clears == 2 && wide_frames && classic_frames);
     else if(scenario && !strcmp(scenario,"filter"))
       assert(aspect_clears==4 && filter_stage==4 && current_level==65535);
+    else if(scenario && !strcmp(scenario,"status"))
+      assert(aspect_clears==2 && status_reads==3 && status_texts==7 && status_clears==4 && current_level==65535);
+    else if(scenario && !strcmp(scenario,"brightness")) {
+      assert(!aspect_clears && backlight_writes==6 && status_reads==9 && status_texts==10);
+      assert(status_values[1]==176 && status_values[2]==0 && current_level==65535);
+      assert(!key_states[SDL_SCANCODE_LEFTBRACKET] && !key_states[SDL_SCANCODE_RIGHTBRACKET]);
+    }
     else
       assert(aspect_clears == 0 && wide_frames == 0);
     if(frames>=8000) assert(partial_frames>0);

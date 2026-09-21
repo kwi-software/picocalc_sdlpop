@@ -48,6 +48,8 @@ void PC_UpdateTextureScaledY(const PC_Rect *rect, const uint16_t *rgb565,
                             const PC_VideoFilter *filter);
 void PC_RenderPresent(void);
 void PC_DrawText(int x, int y, const char *text);
+/* Native 7x11 status glyphs (LCD/KEY, digits, :-%), 10-pixel advance. */
+void PC_DrawTextSmall(int x, int y, const char *text);
 bool PC_OpenAudioDevice(const PC_AudioSpec *spec); /* launches core 1 once */
 unsigned PC_AudioUnderruns(void);
 unsigned PC_AudioMaxRenderUs(void);

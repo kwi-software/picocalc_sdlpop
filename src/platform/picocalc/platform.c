@@ -3,6 +3,7 @@
 #include "pico/stdlib.h"
 #include "pop_port.h"
 #include "southbridge.h"
+#include "pc_status.h"
 static uint32_t last_poll;
 static bool first_poll = true;
 void pc_video_init(void);
@@ -60,4 +61,29 @@ void PC_Delay(unsigned ms) {
       break;
     sleep_ms(1);
   } while (true);
+}
+
+int PC_ReadStatusValue(PC_StatusValue field) {
+  uint8_t reg, raw;
+  switch(field) {
+    case PC_STATUS_BATTERY: reg=SB_REG_BAT;break;
+    case PC_STATUS_LCD: reg=SB_REG_BKL;break;
+    case PC_STATUS_KEYBOARD: reg=SB_REG_BK2;break;
+    default:return -1;
+  }
+  if(!sb_read_status_register(reg,&raw))return -1;
+  if(field==PC_STATUS_BATTERY) {
+    /* BIOS reports percent in bits 0..6; bit 7 indicates charging. */
+    raw &= 0x7f;
+    if(raw>100)return -1;
+  }
+  return raw;
+}
+
+int PC_WriteBacklight(PC_StatusValue field, uint8_t value) {
+  uint8_t reg, actual;
+  if(field==PC_STATUS_LCD)reg=SB_REG_BKL;
+  else if(field==PC_STATUS_KEYBOARD)reg=SB_REG_BK2;
+  else return -1;
+  return sb_write_backlight_register(reg,value,&actual)?actual:-1;
 }

@@ -240,6 +240,18 @@ int main(void) {
   PC_DrawText(316, 316, "A");
   assert(display[290 * 320 + 8] == 0xffff &&
          display[316 * 320 + 318] == 0xffff);
+  PC_DrawText(6,6,"%");
+  assert(display[6*320+6]==0xffff && display[6*320+10]==0 && display[6*320+14]==0xffff);
+  before=windows;
+  PC_DrawTextSmall(6,24,"L:%");
+  assert(windows==before+3);
+  /* Native horizontal and vertical stems are both one pixel wide. */
+  for(unsigned y=0;y<11;y++)for(unsigned x=0;x<7;x++) {
+    assert(display[(24+y)*320+6+x]==((x==0 || y==10)?0xffff:0));
+    assert(display[(24+y)*320+16+x]==((x==3 && (y==3 || y==7))?0xffff:0));
+  }
+  assert(display[24*320+26+1]==0xffff);
+  assert(display[34*320+26+5]==0xffff);
   PC_SetRenderDrawColor(0,0,0);
   PC_RenderFillRect(NULL);
   static uint16_t source_frame[200][320];

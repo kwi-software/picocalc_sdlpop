@@ -177,8 +177,8 @@ void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *rgb,
 }
 void PC_RenderPresent(void) {
 } /* Immediate rendering; all DMA complete on return. */
-/* Original tiny uppercase 5x7 font: symbols for fatal-error diagnostics. */
-static const char glyph_chars[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:-./";
+/* Original tiny uppercase 5x7 font: symbols for diagnostics and the status bar. */
+static const char glyph_chars[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:-./%";
 static const uint8_t glyphs[][7] = {
     {0, 0, 0, 0, 0, 0, 0},        {14, 17, 17, 31, 17, 17, 17},
     {30, 17, 17, 30, 17, 17, 30}, {14, 17, 16, 16, 16, 17, 14},
@@ -200,7 +200,7 @@ static const uint8_t glyphs[][7] = {
     {31, 1, 2, 4, 8, 8, 8},       {14, 17, 17, 14, 17, 17, 14},
     {14, 17, 17, 15, 1, 1, 14},   {0, 4, 4, 0, 4, 4, 0},
     {0, 0, 0, 31, 0, 0, 0},       {0, 0, 0, 0, 0, 4, 4},
-    {1, 2, 2, 4, 8, 8, 16}};
+    {1, 2, 2, 4, 8, 8, 16},     {25, 26, 2, 4, 8, 11, 19}};
 void PC_DrawText(int x, int y, const char *s) {
   int start = x;
   while (*s) {
@@ -226,5 +226,48 @@ void PC_DrawText(int x, int y, const char *s) {
     PC_Rect r = {x, y, 10, 14};
     PC_UpdateTexture(&r, &glyph[0][0], 20);
     x += 12;
+  }
+}
+
+/* Original native status glyphs: single-pixel stems, no resampling.
+   Only status labels, digits and punctuation are needed; unknowns are blank. */
+static const char status_chars[] = " LCDKEY0123456789:-%";
+static const uint8_t status_glyphs[][11] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, /*   */
+    {64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 127}, /* L */
+    {62, 65, 64, 64, 64, 64, 64, 64, 64, 65, 62}, /* C */
+    {124, 66, 65, 65, 65, 65, 65, 65, 65, 66, 124}, /* D */
+    {65, 66, 68, 72, 80, 96, 80, 72, 68, 66, 65}, /* K */
+    {127, 64, 64, 64, 64, 124, 64, 64, 64, 64, 127}, /* E */
+    {65, 65, 34, 34, 20, 8, 8, 8, 8, 8, 8}, /* Y */
+    {62, 65, 65, 65, 65, 65, 65, 65, 65, 65, 62}, /* 0 */
+    {8, 24, 40, 8, 8, 8, 8, 8, 8, 8, 62}, /* 1 */
+    {62, 65, 1, 1, 2, 4, 8, 16, 32, 64, 127}, /* 2 */
+    {62, 65, 1, 1, 2, 28, 2, 1, 1, 65, 62}, /* 3 */
+    {2, 6, 10, 18, 34, 66, 127, 2, 2, 2, 2}, /* 4 */
+    {127, 64, 64, 64, 64, 126, 1, 1, 1, 65, 62}, /* 5 */
+    {30, 32, 64, 64, 64, 126, 65, 65, 65, 65, 62}, /* 6 */
+    {127, 1, 2, 2, 4, 4, 8, 8, 16, 16, 16}, /* 7 */
+    {62, 65, 65, 65, 34, 28, 34, 65, 65, 65, 62}, /* 8 */
+    {62, 65, 65, 65, 65, 63, 1, 1, 2, 4, 120}, /* 9 */
+    {0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0}, /* : */
+    {0, 0, 0, 0, 0, 62, 0, 0, 0, 0, 0}, /* - */
+    {32, 81, 34, 2, 4, 8, 16, 32, 34, 69, 2}, /* % */
+};
+void PC_DrawTextSmall(int x, int y, const char *s) {
+  int start=x;
+  while(*s) {
+    unsigned char c=*s++;
+    if(c=='\n'){x=start;y+=13;continue;}
+    if(c>='a' && c<='z')c-=32;
+    const char *g=strchr(status_chars,c);
+    unsigned idx=g?(unsigned)(g-status_chars):0;
+    /* One native 7x11 glyph; DMA completes before the buffer is reused. */
+    uint16_t glyph[11][7];
+    for(unsigned j=0;j<11;j++)
+      for(unsigned k=0;k<7;k++)
+        glyph[j][k]=(status_glyphs[idx][j] & (64>>k))?color:0;
+    PC_UpdateTexture(&(PC_Rect){x,y,7,11},&glyph[0][0],14);
+    x+=10;
   }
 }

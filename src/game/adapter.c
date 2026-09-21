@@ -3,6 +3,7 @@
 #include "game_assets.h"
 #include "game_port.h"
 #include "pop_game_hooks.h"
+#include "pc_status.h"
 #include <strings.h>
 #include <time.h>
 
@@ -325,6 +326,7 @@ void update_screen(void) {
     if (aspect_dirty) {
       PC_SetRenderDrawColor(0, 0, 0);
       PC_RenderFillRect(NULL);
+      PC_StatusInvalidate();
       aspect_dirty = false;
       present_left = 0;
       present_right = 320;
@@ -335,6 +337,7 @@ void update_screen(void) {
     PC_UpdateTextureScaledY(&dst, (const uint16_t *)onscreen_surface_->pixels + present_left,
                             onscreen_surface_->pitch, 200, &filter);
     PC_RenderPresent();
+    PC_StatusTick();
     present_left = 0;
     present_right = 320;
   }
@@ -380,6 +383,16 @@ void process_events(void) {
         continue; /* No movement, title skip, text input or cheat command. */
       }
     }
+    if(e.scancode==SDL_SCANCODE_LEFTBRACKET || e.scancode==SDL_SCANCODE_RIGHTBRACKET) {
+      if(e.type==PC_KEYDOWN && !e.repeat)
+        PC_StatusAdjustBacklight((e.modifiers&0x300)?PC_STATUS_LCD:PC_STATUS_KEYBOARD,
+                                e.scancode==SDL_SCANCODE_RIGHTBRACKET?1:-1);
+      continue; /* Reserve both press and release, including title waits. */
+    }
+    if (e.scancode == SDL_SCANCODE_TAB) {
+      if(e.type==PC_KEYDOWN && !e.repeat)PC_StatusCycle();
+      continue;
+    }
     if (e.scancode == SDL_SCANCODE_F1) {
       if (e.type == PC_KEYDOWN && !e.repeat) {
         widescreen = !widescreen;
@@ -416,6 +429,8 @@ void process_events(void) {
   /* Title/cutscene waits do not redraw each tick. Make F1 visible there too. */
   if (aspect_dirty && onscreen_surface_)
     update_screen();
+  /* Update the independent LCD margin even during title/pause waits. */
+  if(onscreen_surface_)PC_StatusTick();
   if (timer_fn && PC_GetPerformanceCounter() >= timer_due) {
     Uint32 (*fn)(Uint32, void *) = timer_fn;
     timer_fn = NULL;

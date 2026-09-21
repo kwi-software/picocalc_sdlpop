@@ -85,6 +85,9 @@ All game graphics, levels and sounds are embedded when compiling. Do not copy DA
 |---|---|
 | Enter | Start the game |
 | F1 | Toggle 4:3 / 16:10; default 4:3 |
+| Tab | Cycle status bar: hidden (startup), battery, battery + display/keyboard brightness |
+| `[` / `]` | Decrease / increase keyboard backlight |
+| `Alt+[` / `Alt+]` | Decrease / increase display backlight |
 | Ctrl+F | Toggle vertical filtering in 4:3; disabled on startup, ignored in 16:10 |
 | F2 | Save game, preferring SD |
 | F3 | Toggle Megahit cheats; disabled on boot |
@@ -104,7 +107,9 @@ All game graphics, levels and sounds are embedded when compiling. Do not copy DA
 
 The 4:3 mode offers optional vertical area-weighted filtering to reduce uneven steps on diagonal edges. Text regions, including title lettering and the minutes display, use unfiltered scaling for readability. Ctrl+F disables/enables the filter for the remaining picture in 4:3. This setting survives aspect-ratio changes but resets to disabled at startup; Ctrl+F has no effect in 16:10. The 16:10 mode remains pixel-exact. LCD transfers remain two-byte RGB565.
 
-There is no help overlay. F1, F3 and Ctrl+F do not skip the title sequence. F5 and 1 are independent action inputs, not text modifiers. Releasing one action key does not cancel another held action key.
+The optional status bar occupies the upper LCD margin without enlarging the game framebuffers. Battery charge is read when shown and every 60 seconds thereafter; brightness is read when entering the expanded view and after adjustments, with no periodic brightness polling. The bracket keys work even while the bar is hidden. Each press changes keyboard brightness by 32 and display brightness by 16, matching stock BIOS steps. The keyboard range is 0–224 and the display range is 16–240. These caps prevent BIOS rounding or wraparound from turning the keyboard light off. Brightness percentages are relative to each usable maximum: keyboard 224 and display 240 both show 100%. The native 11-pixel-high status text uses the labels `LCD:` and `KEY:` and matches the battery icon height. Values are displayed as percentages; unavailable readings show `--%`. Hidden status does not automatically poll the device, and unchanged values do not cause redraws.
+
+There is no help overlay. Tab, F1, F3 and Ctrl+F do not skip the title sequence. F5 and 1 are independent action inputs, not text modifiers. Releasing one action key does not cancel another held action key.
 
 ### Cheat keys after F3
 
@@ -180,6 +185,7 @@ sh src/tests/run_store_tests.sh
 sh src/tests/run_sd_tests.sh
 sh src/tests/run_hardware_logic_tests.sh
 sh src/tests/run_video_tests.sh
+sh src/tests/run_status_tests.sh
 python3 src/tests/run_game_tests.py
 sh src/tests/run_sound_dat_tests.sh /absolute/path/to/DATs 1
 python3 src/tests/check_firmware.py build/prince_picocalc.elf
