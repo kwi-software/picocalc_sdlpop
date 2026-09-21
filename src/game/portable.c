@@ -276,6 +276,8 @@ chtab_type* load_sprites_from_file(int resource,int palette_bits, int quit_on_er
 		chtab->images[i-1] = image;
 	}
 	set_loaded_palette(pal_ptr);
+	/* Images own their palettes; the temporary DAT palette is no longer needed. */
+	free(shpl);
 	return chtab;
 }
 

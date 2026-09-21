@@ -186,7 +186,17 @@
  }
  
  // seg000:1F02
-@@ -2318,7 +2290,7 @@
+@@ -2215,7 +2187,8 @@
+ 
+ 	is_cutscene = 0;
+ 	is_ending_sequence = false; // added
+-	peels_count = 0;
++	// Release saved sprite backgrounds before restarting via longjmp.
++	free_peels();
+ 	// should these be freed?
+ 	for (short index = 2; index < 10; ++index) {
+ 		if (chtab_addrs[index]) {
+@@ -2318,7 +2291,7 @@
  			color.a = 0xFF;
  		}
  		if (NULL != chtab_title40) {
@@ -195,7 +205,7 @@
  		}
  	} else if (graphics_mode == gmEga || graphics_mode == gmTga) {
  		// ...
-@@ -2427,45 +2399,7 @@
+@@ -2427,45 +2400,7 @@
  		"\n"
  		"Press any key to continue...";
  

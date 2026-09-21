@@ -194,6 +194,8 @@ sh src/tests/run_loader25_tests.sh build/prince_picocalc.uf2
 
 For the sound test, use layout `1` for DOS 1.0/1.1 and `2` for 1.3/1.4. Host tests require GCC, CMake and Ninja. For host-game tests with an external DAT folder, first configure `build-host-game` with `-DPRINCE_HOST=ON -DPRINCE_FILES=/absolute/path/to/DATs`. The DAT parser unit test uses `PrinceFiles`. ELF inspection also needs `arm-none-eabi-nm` and `arm-none-eabi-objdump` in PATH. SD tests use disposable disk images, not physical drives.
 
+The host-game suite includes a 150,000-frame title/demo soak test and compares heap usage at matching title phases after warm-up. It takes longer than the short control tests.
+
 Automated checks do not constitute a complete playthrough or hardware validation of every feature. Desktop menus, replays, arbitrary-position quicksaves and smooth palette fades are not included.
 
 ## Authors

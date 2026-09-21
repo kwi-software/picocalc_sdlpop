@@ -22,6 +22,9 @@ static bool health_tested;
 static bool persistence_tested, cheats_tested;
 static void verify_cheats(void);
 static unsigned partial_frames;
+static unsigned soak_title_entries;
+static bool soak_titles_visible;
+static size_t soak_title_heap[2];
 static uint16_t lcd[320*320];
 static int seen_level = -1;
 static unsigned status_reads,status_texts,status_clears,backlight_writes;
@@ -118,7 +121,7 @@ uint32_t PC_GetTicks(void) { return (uint32_t)(now / 1000); }
 uint64_t PC_GetPerformanceCounter(void) { return now; }
 void PC_Delay(unsigned ms) {
   now += (uint64_t)ms * 1000;
-  if (now > 240000000) {
+  if (now > (scenario && !strcmp(scenario,"heap_soak") ? 7200000000ULL : 240000000ULL)) {
     fprintf(stderr, "Host watchdog expired\n");
     exit(2);
   }
@@ -204,6 +207,18 @@ void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *p,
 }
 void PC_RenderPresent(void) {}
 void game_host_frame(void) {
+  if(scenario && !strcmp(scenario,"heap_soak")) {
+    bool titles=chtab_title40 && chtab_title50;
+    if(titles && !soak_titles_visible) {
+      unsigned phase=soak_title_entries++ % 2;
+      size_t used=game_heap_used();
+      fprintf(stderr,"SOAK TITLE %u phase=%u heap=%zu\n",soak_title_entries,phase,used);
+      /* Initial startup is cold; compare the same phase after one warm cycle. */
+      if(soak_title_entries>4)assert(used==soak_title_heap[phase]);
+      soak_title_heap[phase]=used;
+    }
+    soak_titles_visible=titles;
+  }
   if (++frames % 100 == 0)
     fprintf(stderr,
             "frame=%u t=%llu level=%d room=%d kid=%u,%u heap=%zu peak=%zu\n",
@@ -299,6 +314,10 @@ void game_host_frame(void) {
     else
       assert(aspect_clears == 0 && wide_frames == 0);
     if(frames>=8000) assert(partial_frames>0);
+    if(scenario && !strcmp(scenario,"heap_soak")) {
+      assert(soak_title_entries>=20);
+      fprintf(stderr,"SOAK PASS title_entries=%u stable_heap=%zu/%zu\n",soak_title_entries,soak_title_heap[0],soak_title_heap[1]);
+    }
     if (scenario && !strcmp(scenario, "health"))
       assert(health_tested);
     if (scenario && !strcmp(scenario, "aspect"))

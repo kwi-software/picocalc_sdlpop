@@ -2187,7 +2187,8 @@ void clear_screen_and_sounds() {
 
 	is_cutscene = 0;
 	is_ending_sequence = false; // added
-	peels_count = 0;
+	// Release saved sprite backgrounds before restarting via longjmp.
+	free_peels();
 	// should these be freed?
 	for (short index = 2; index < 10; ++index) {
 		if (chtab_addrs[index]) {

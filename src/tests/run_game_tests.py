@@ -23,10 +23,11 @@ cases=[
  ('save',['megahit','1'],{'POP_SCENARIO':'save','POP_FRAMES':'100','PRINCE_STORE_PATH':str(store)}),
  ('load',[],{'POP_SCENARIO':'load','POP_LEVEL_TEST':'6','POP_FRAMES':'100','PRINCE_STORE_PATH':str(store)}),
  ('attract',[],{'POP_FRAMES':'8000'}),
+ ('heap_soak',[],{'POP_SCENARIO':'heap_soak','POP_FRAMES':'150000'}),
 ]
 for name,args,opts in cases:
     run_env=dict(env,**opts,POP_CAPTURE=str(out/(name+'.ppm')))
-    p=subprocess.run(['./build-host-game/prince',*args],cwd=root,env=run_env,capture_output=True,text=True,timeout=60)
+    p=subprocess.run(['./build-host-game/prince',*args],cwd=root,env=run_env,capture_output=True,text=True,timeout=300 if name=='heap_soak' else 60)
     log=p.stdout+p.stderr;(out/(name+'.log')).write_text(log)
     if p.returncode:
         print(log[-3000:]);raise SystemExit(f'{name} failed ({p.returncode})')
