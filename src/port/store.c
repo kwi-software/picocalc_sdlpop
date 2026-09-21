@@ -19,7 +19,7 @@ static uint32_t crc(const uint8_t *p) {
     return ~v;
 }
 bool pc_record_valid(const uint8_t p[PC_RECORD_SIZE]) {
-    return pc_record_get32(p)==MAGIC && pc_record_get32(p+8)<=3 &&
+    return pc_record_get32(p)==MAGIC && pc_record_get32(p+8)<=7 &&
            crc(p)==pc_record_get32(p+252);
 }
 void pc_record_seal(uint8_t p[PC_RECORD_SIZE]) {

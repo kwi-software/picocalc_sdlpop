@@ -69,5 +69,33 @@ int main(int argc,char **argv) {
     assert(PC_StoreRead(PC_STORE_SAVE,out,8));assert(!memcmp(out,save,8));
     expect(PC_STORE_HOF,score,sizeof score);
     assert(PC_StoreLastBackend()==PC_STORE_SD);
+    uint8_t settings[8]={1,1,1,0,1,2,192,32}, result[PC_STORE_HOF_SIZE];
+    unsigned before=flash_writes;
+    assert(PC_StoreWrite(PC_STORE_SETTINGS,settings,8));
+    expect(PC_STORE_SETTINGS,settings,8);assert(flash_writes==before);
+    present=false;settings[1]=0;
+    assert(PC_StoreWrite(PC_STORE_SETTINGS,settings,8));
+    present=true;expect(PC_STORE_SETTINGS,settings,8);
+    expect(PC_STORE_SAVE,save,8);expect(PC_STORE_HOF,score,sizeof score);
+    /* Reset offline; a reinserted stale card must not resurrect any key. */
+    present=false;assert(PC_StoreReset());
+    present=true;write_fail=true;
+    for(unsigned key=0;key<3;key++)assert(!PC_StoreRead(key,result,key==0?sizeof score:8));
+    write_fail=false;
+    for(unsigned key=0;key<3;key++)assert(!PC_StoreRead(key,result,key==0?sizeof score:8));
+    assert(PC_StoreLastBackend()==PC_STORE_SD);
+    assert(PC_StoreWrite(PC_STORE_SETTINGS,settings,8));
+    assert(!PC_StoreRead(PC_STORE_SAVE,result,8));
+    assert(!PC_StoreRead(PC_STORE_HOF,result,sizeof score));
+    /* Once synchronized, the on-card reset also survives empty flash. */
+    memset(flash,255,sizeof flash);fat32_unmount();
+    expect(PC_STORE_SETTINGS,settings,8);
+    assert(!PC_StoreRead(PC_STORE_SAVE,result,8));
+    assert(!PC_StoreRead(PC_STORE_HOF,result,sizeof score));
+    assert(PC_StoreReset());assert(PC_StoreLastBackend()==PC_STORE_SD);
+    assert(!PC_StoreRead(PC_STORE_SETTINGS,result,8));
+    /* Leave fixtures for the separate-process persistence check. */
+    assert(PC_StoreWrite(PC_STORE_SAVE,save,8));
+    assert(PC_StoreWrite(PC_STORE_HOF,score,sizeof score));
     fclose(disk);puts("PASS: FAT32 directory creation across clusters, SD-first scores/save, write/read errors, card removal, flash fallback and recovery");
 }

@@ -2,17 +2,31 @@
 #include "pc_status.h"
 #include "pop_port.h"
 #include <stdio.h>
+#include <string.h>
 static unsigned mode; /* 0: hidden (startup), 1: battery, 2: battery and lights. */
 static bool dirty, battery_sampled, lights_sampled;
 static uint32_t battery_time;
 static int battery=-1, lcd=-1, keyboard=-1;
-void PC_StatusCycle(void) {
-    mode=(mode+1)%3;
-    dirty=true;
+static char notice[26];
+static uint32_t notice_time;
+unsigned PC_StatusGetMode(void){return mode;}
+void PC_StatusSetMode(unsigned value) {
+    if(value>2 || value==mode)return;
+    mode=value;dirty=true;
     if(mode==1)battery_sampled=false;
     if(mode==2)lights_sampled=false;
 }
-void PC_StatusInvalidate(void) { if(mode)dirty=true; }
+void PC_StatusCycle(void){PC_StatusSetMode((mode+1)%3);}
+void PC_StatusRestoreBacklights(uint8_t display,uint8_t keys) {
+    lcd=PC_WriteBacklight(PC_STATUS_LCD,display);
+    keyboard=PC_WriteBacklight(PC_STATUS_KEYBOARD,keys);
+    lights_sampled=true;if(mode==2)dirty=true;
+}
+void PC_StatusNotice(const char *message) {
+    snprintf(notice,sizeof notice,"%s",message);
+    notice_time=PC_GetTicks();dirty=true;
+}
+void PC_StatusInvalidate(void) { if(mode || notice[0])dirty=true; }
 static void sample(PC_StatusValue field,int *cached) {
     int value=PC_ReadStatusValue(field);
     if(value!=*cached){*cached=value;dirty=true;}
@@ -47,6 +61,7 @@ static void percent(char *out,size_t size,const char *label,int value) {
     else snprintf(out,size,"%s%3d%%",label,value);
 }
 void PC_StatusTick(void) {
+    if(notice[0] && (uint32_t)(PC_GetTicks()-notice_time)>=3000){notice[0]=0;dirty=true;}
     if(mode) {
         uint32_t now=PC_GetTicks();
         if(!battery_sampled || (uint32_t)(now-battery_time)>=60000) {
@@ -62,6 +77,10 @@ void PC_StatusTick(void) {
     dirty=false;
     PC_SetRenderDrawColor(0,0,0);
     PC_RenderFillRect(&(PC_Rect){0,0,320,26});
+    if(notice[0]) {
+        PC_SetRenderDrawColor(210,210,210);PC_DrawText(6,6,notice);
+        PC_RenderPresent();return;
+    }
     if(!mode)return;
     PC_SetRenderDrawColor(210,210,210);
     char text[16];

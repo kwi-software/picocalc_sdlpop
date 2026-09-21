@@ -4,6 +4,7 @@
 #include "game_port.h"
 #include "pop_game_hooks.h"
 #include "pc_status.h"
+#include "pc_store.h"
 #include <strings.h>
 #include <time.h>
 
@@ -314,6 +315,37 @@ static bool widescreen; /* Default 4:3, F1 toggles 320x200 (16:10). */
 static bool aspect_dirty;
 static bool vertical_filter_enabled = false;
 static bool filter_key_held;
+static void apply_settings(const uint8_t data[PC_STORE_SETTINGS_SIZE]) {
+  if(widescreen!=(bool)data[1] || vertical_filter_enabled!=(bool)data[2])aspect_dirty=true;
+  widescreen=data[1];vertical_filter_enabled=data[2];
+  turn_sound_on_off(data[3]?15:0);cheats_enabled=data[4];
+  PC_StatusSetMode(data[5]);PC_StatusRestoreBacklights(data[6],data[7]);
+}
+void game_load_settings(void) {
+  uint8_t data[PC_STORE_SETTINGS_SIZE];
+  if(!PC_StoreRead(PC_STORE_SETTINGS,data,sizeof data))return;
+  if(data[0]!=1 || data[1]>1 || data[2]>1 || data[3]>1 || data[4]>1 || data[5]>2 ||
+     data[6]<16 || data[6]>240 || data[7]>224)return;
+  apply_settings(data);
+}
+static void save_settings(void) {
+  int lcd=PC_ReadStatusValue(PC_STATUS_LCD),keys=PC_ReadStatusValue(PC_STATUS_KEYBOARD);
+  if(lcd<16 || lcd>240 || keys<0 || keys>224) {
+    PC_StatusNotice("SETTINGS SAVE FAILED");return;
+  }
+  uint8_t data[PC_STORE_SETTINGS_SIZE]={1,widescreen,vertical_filter_enabled,
+      is_sound_on!=0,cheats_enabled!=0,PC_StatusGetMode(),lcd,keys};
+  bool ok=PC_StoreWrite(PC_STORE_SETTINGS,data,sizeof data);
+  PC_StatusNotice(!ok?"SETTINGS SAVE FAILED":PC_StoreLastBackend()==PC_STORE_SD?
+                  "SETTINGS SAVED SD":"SETTINGS SAVED FLASH");
+}
+static void reset_saved_data(void) {
+  if(!PC_StoreReset()){PC_StatusNotice("RESET FAILED");return;}
+  hof_read();
+  static const uint8_t defaults[PC_STORE_SETTINGS_SIZE]={1,0,0,1,0,0,176,0};
+  apply_settings(defaults);
+  PC_StatusNotice(PC_StoreLastBackend()==PC_STORE_SD?"SAVED DATA CLEARED":"CLEARED - SD SYNC PENDING");
+}
 static int present_left, present_right = 320;
 void game_present_columns(int left, int right) {
   if (left >= 0 && right > left && right <= 320) {
@@ -372,7 +404,21 @@ void process_events(void) {
   PC_PumpEvents();
   PC_Event e;
   while (PC_InputNext(&e)) {
-    if(e.type==PC_INPUT_RESET)filter_key_held=false;
+    static unsigned settings_keys_held;
+    if(e.type==PC_INPUT_RESET){filter_key_held=false;settings_keys_held=0;}
+    unsigned settings_key=e.scancode==SDL_SCANCODE_F2?1:e.scancode==SDL_SCANCODE_DELETE?2:0;
+    if(settings_key) {
+      if(e.type==PC_KEYUP && (settings_keys_held&settings_key)) {
+        settings_keys_held&=~settings_key;continue;
+      }
+      if(e.type==PC_KEYDOWN && ((e.modifiers&0x300) || (settings_keys_held&settings_key))) {
+        if(!e.repeat && !(settings_keys_held&settings_key)) {
+          settings_keys_held|=settings_key;
+          if(settings_key==1)save_settings();else reset_saved_data();
+        }
+        continue;
+      }
+    }
     if(e.scancode==SDL_SCANCODE_F) {
       if(e.type==PC_KEYUP && filter_key_held) {filter_key_held=false;continue;}
       if(e.type==PC_KEYDOWN && (filter_key_held || (e.modifiers&0xc0))) {

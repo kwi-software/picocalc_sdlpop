@@ -14,6 +14,7 @@ static int expected_level = -1;
 static unsigned game_frames;
 static const char *capture;
 static const char *scenario;
+static bool settings_test(void) {return scenario && !strncmp(scenario,"settings_",9);}
 static bool pending_release;
 static unsigned since_level;
 static unsigned aspect_clears, wide_frames, classic_frames;
@@ -45,6 +46,25 @@ void PC_PumpEvents(void) {
   }
 
   static unsigned step, control_step;
+  if(settings_test() && !strcmp(scenario,"settings_save") && !control_step && now>=1000000) {
+    control_step++;
+    turn_sound_on_off(0);
+    PC_InputFeed(0xa5,1);PC_InputFeed('f',1);PC_InputFeed('f',3);PC_InputFeed(0xa5,3);
+    PC_InputFeed(0x81,1);PC_InputFeed(0x81,3);
+    PC_InputFeed(0x83,1);PC_InputFeed(0x83,3);
+    PC_InputFeed(9,1);PC_InputFeed(9,3);PC_InputFeed(9,1);PC_InputFeed(9,3);
+    PC_InputFeed(']',1);PC_InputFeed(']',3);
+    PC_InputFeed(0xa1,1);PC_InputFeed(']',1);PC_InputFeed(']',3);
+    PC_InputFeed(0x82,1);PC_InputFeed(0x82,1);PC_InputFeed(0xa1,3);PC_InputFeed(0x82,3);
+  }
+  if(settings_test() && !strcmp(scenario,"settings_reset") && !control_step && now>=1000000) {
+    control_step++;
+    uint8_t scores[PC_STORE_HOF_SIZE]={0},save[8]={0};
+    assert(PC_StoreWrite(PC_STORE_HOF,scores,sizeof scores));
+    assert(PC_StoreWrite(PC_STORE_SAVE,save,sizeof save));
+    PC_InputFeed(0xa1,1);PC_InputFeed(0xd4,1);PC_InputFeed(0xd4,1);
+    PC_InputFeed(0xa1,3);PC_InputFeed(0xd4,3);
+  }
   if (scenario && !strcmp(scenario, "aspect")) {
     static const unsigned times[] = {1000, 1100, 1200, 3000, 3100};
     static const unsigned states[] = {1, 1, 3, 1, 3};
@@ -152,7 +172,7 @@ void PC_SetRenderDrawColor(uint8_t r, uint8_t g, uint8_t b) {
 }
 void PC_RenderFillRect(const PC_Rect *r) {
   if(r) {
-    assert(scenario && (!strcmp(scenario,"status") || !strcmp(scenario,"brightness")));
+    assert(scenario && (!strcmp(scenario,"status") || !strcmp(scenario,"brightness") || settings_test()));
     assert(r->y>=0 && r->y+r->h<=26);
     if(r->w==320)status_clears++;
     return;
@@ -161,13 +181,13 @@ void PC_RenderFillRect(const PC_Rect *r) {
   memset(lcd,0,sizeof lcd);
 }
 void PC_DrawText(int x,int y,const char *text) {
-  (void)x;(void)y;(void)text;assert(!"Unexpected diagnostic text");
+  (void)x;(void)y;assert(settings_test());assert(!strstr(text,"FAILED"));
 }
 void PC_DrawTextSmall(int x, int y, const char *text) {
   (void)x;
   (void)y;
   (void)text;
-  assert(scenario && (!strcmp(scenario,"status") || !strcmp(scenario,"brightness")) && y==7);
+  assert(scenario && (!strcmp(scenario,"status") || !strcmp(scenario,"brightness") || settings_test()) && y==7);
   status_texts++;
 }
 void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *p,
@@ -310,6 +330,21 @@ void game_host_frame(void) {
       assert(!aspect_clears && backlight_writes==6 && status_reads==9 && status_texts==10);
       assert(status_values[1]==176 && status_values[2]==0 && current_level==65535);
       assert(!key_states[SDL_SCANCODE_LEFTBRACKET] && !key_states[SDL_SCANCODE_RIGHTBRACKET]);
+    }
+    else if(settings_test()) {
+      uint8_t result[PC_STORE_HOF_SIZE],expected[8]={1,1,1,0,1,2,192,32};
+      if(!strcmp(scenario,"settings_save") || !strcmp(scenario,"settings_load")) {
+        assert(PC_StoreRead(PC_STORE_SETTINGS,result,8) && !memcmp(result,expected,8));
+        assert(!is_sound_on && cheats_enabled && PC_StatusGetMode()==2);
+        assert(status_values[1]==192 && status_values[2]==32 && wide_frames);
+        assert(!PC_StoreRead(PC_STORE_SAVE,result,8));
+      } else {
+        for(unsigned key=0;key<3;key++)assert(!PC_StoreRead(key,result,key==0?PC_STORE_HOF_SIZE:8));
+        assert(is_sound_on && !cheats_enabled && PC_StatusGetMode()==0);
+        if(!strcmp(scenario,"settings_reset"))assert(status_values[1]==176 && status_values[2]==0 && hof_count==0);
+        else assert(!wide_frames);
+      }
+      assert(!key_states[SDL_SCANCODE_F2] && !key_states[SDL_SCANCODE_DELETE]);
     }
     else
       assert(aspect_clears == 0 && wide_frames == 0);

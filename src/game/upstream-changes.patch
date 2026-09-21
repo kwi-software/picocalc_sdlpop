@@ -19,13 +19,16 @@
 +#undef USE_COPYPROT
 --- a/src/proto.h
 +++ b/src/proto.h
-@@ -729,3 +729,6 @@
+@@ -729,3 +729,9 @@
  void init_midi(void);
  void midi_callback(void *userdata, Uint8 *stream, int len);
  void play_midi_sound(sound_buffer_type* buffer);
 +
 +/* PicoCalc partial presentation during the title wipe. */
 +void game_present_columns(int left, int right);
++
++/* PicoCalc preferences are applied after command-line initialization. */
++void game_load_settings(void);
 --- a/src/seg000.c
 +++ b/src/seg000.c
 @@ -19,6 +19,7 @@
@@ -36,7 +39,15 @@
  #include <setjmp.h>
  #define _USE_MATH_DEFINES
  #include <math.h>
-@@ -565,7 +566,7 @@
+@@ -112,6 +113,7 @@
+ 	debug_cheats_enabled = check_param("debug") != NULL;
+ 	if (debug_cheats_enabled) cheats_enabled = 1; // param 'megahit' not necessary if 'debug' is used
+ #endif
++	game_load_settings();
+ 	draw_mode = check_param("draw") != NULL && cheats_enabled;
+ 	demo_mode = check_param("demo") != NULL;
+ 
+@@ -565,7 +567,7 @@
  				start_recording();
  			} else
  			#endif
@@ -45,7 +56,7 @@
  				if (!load_game()) return 0;
  			} else {
  				start_level = custom->first_level; // 1
-@@ -616,7 +617,13 @@
+@@ -616,7 +618,13 @@
  				is_restart_level = 1;
  			}
  		break;
@@ -60,7 +71,7 @@
  			// CusPoP: first and last level where saving is allowed
  //			if (current_level > 2 && current_level < 14) { // original
  			if (current_level >= custom->saving_allowed_first_level && current_level <= custom->saving_allowed_last_level) {
-@@ -1801,7 +1808,7 @@
+@@ -1801,7 +1809,7 @@
  		control_x = CONTROL_HELD_RIGHT;
  	}
  	
@@ -69,7 +80,7 @@
  		control_shift = CONTROL_HELD;
  	else
  		control_shift = CONTROL_RELEASED;
-@@ -2042,6 +2049,9 @@
+@@ -2042,6 +2050,9 @@
  
  // seg000:1BB3
  void transition_ltr() {
@@ -79,7 +90,7 @@
  	rect_type rect;
  	rect.top = 0;
  	rect.bottom = 200;
-@@ -2065,7 +2075,9 @@
+@@ -2065,7 +2076,9 @@
  			--overshoot;
  			continue; // On slow systems (e.g. Raspberry Pi), allow the animation to catch up, before refreshing the screen.
  		}
@@ -89,7 +100,7 @@
  		do_paused();
  		// Add an appropriate delay until the next frame, so that the animation isn't instantaneous on fast CPUs.
  		for (;;) {
-@@ -2080,6 +2092,11 @@
+@@ -2080,6 +2093,11 @@
  			}
  		}
  
@@ -101,7 +112,7 @@
  	}
  }
  
-@@ -2143,69 +2160,24 @@
+@@ -2143,69 +2161,24 @@
  }
  
  // seg000:1D45
@@ -186,7 +197,7 @@
  }
  
  // seg000:1F02
-@@ -2215,7 +2187,8 @@
+@@ -2215,7 +2188,8 @@
  
  	is_cutscene = 0;
  	is_ending_sequence = false; // added
@@ -196,7 +207,7 @@
  	// should these be freed?
  	for (short index = 2; index < 10; ++index) {
  		if (chtab_addrs[index]) {
-@@ -2318,7 +2291,7 @@
+@@ -2318,7 +2292,7 @@
  			color.a = 0xFF;
  		}
  		if (NULL != chtab_title40) {
@@ -205,7 +216,7 @@
  		}
  	} else if (graphics_mode == gmEga || graphics_mode == gmTga) {
  		// ...
-@@ -2427,45 +2400,7 @@
+@@ -2427,45 +2401,7 @@
  		"\n"
  		"Press any key to continue...";
  

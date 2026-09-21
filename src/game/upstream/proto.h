@@ -732,3 +732,6 @@ void play_midi_sound(sound_buffer_type* buffer);
 
 /* PicoCalc partial presentation during the title wipe. */
 void game_present_columns(int left, int right);
+
+/* PicoCalc preferences are applied after command-line initialization. */
+void game_load_settings(void);

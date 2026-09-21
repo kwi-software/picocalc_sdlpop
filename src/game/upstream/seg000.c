@@ -113,6 +113,7 @@ void pop_main() {
 	debug_cheats_enabled = check_param("debug") != NULL;
 	if (debug_cheats_enabled) cheats_enabled = 1; // param 'megahit' not necessary if 'debug' is used
 #endif
+	game_load_settings();
 	draw_mode = check_param("draw") != NULL && cheats_enabled;
 	demo_mode = check_param("demo") != NULL;
 

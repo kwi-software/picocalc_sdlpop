@@ -32,7 +32,7 @@ int main(void) {
     memset(flash, 255, sizeof flash);
     memset(hof, 0x5a, sizeof hof);
     assert(!PC_StoreRead(PC_STORE_HOF, out, sizeof out));
-    assert(!PC_StoreWrite(2, save, 8));
+    assert(!PC_StoreWrite(3, save, 8));
     assert(!PC_StoreWrite(PC_STORE_SAVE, save, 7));
     assert(!PC_StoreRead(PC_STORE_SAVE, NULL, 8));
     assert(PC_StoreWrite(PC_STORE_HOF, hof, sizeof hof));
@@ -78,6 +78,27 @@ int main(void) {
     read_save(1);
     memset(save, 3, 8); assert(PC_StoreWrite(PC_STORE_SAVE, save, 8));
     read_save(3);
+    /* Settings share the record without replacing scores or game saves. */
+    uint8_t settings[8]={1,1,1,0,1,2,192,32}, small[8];
+    assert(PC_StoreWrite(PC_STORE_HOF,hof,sizeof hof));
+    assert(PC_StoreWrite(PC_STORE_SETTINGS,settings,8));
+    read_save(3);
+    assert(PC_StoreRead(PC_STORE_SETTINGS,small,8) && !memcmp(small,settings,8));
+    uint8_t snapshot[PC_STORE_BYTES];memcpy(snapshot,flash,sizeof flash);
+    for(cut=0;cut<256;cut++) {
+        memcpy(flash,snapshot,sizeof flash);
+        assert(!PC_StoreReset());
+        read_save(3);
+        assert(PC_StoreRead(PC_STORE_SETTINGS,small,8) && !memcmp(small,settings,8));
+        assert(PC_StoreRead(PC_STORE_HOF,out,sizeof out) && !memcmp(out,hof,sizeof out));
+    }
+    cut=-1;assert(PC_StoreReset());
+    assert(!PC_StoreRead(PC_STORE_SETTINGS,small,8));
+    assert(!PC_StoreRead(PC_STORE_SAVE,small,8));
+    assert(!PC_StoreRead(PC_STORE_HOF,out,sizeof out));
+    assert(PC_StoreWrite(PC_STORE_SETTINGS,settings,8));
+    assert(!PC_StoreRead(PC_STORE_SAVE,small,8));
+    assert(!PC_StoreRead(PC_STORE_HOF,out,sizeof out));
     memset(flash, 255, sizeof flash); /* Provided UF2 resets both sectors. */
     assert(!PC_StoreRead(PC_STORE_SAVE, save, 8));
     assert(!PC_StoreRead(PC_STORE_HOF, out, sizeof out));

@@ -11,3 +11,8 @@ void PC_StatusAdjustBacklight(PC_StatusValue field, int direction);
 void PC_StatusCycle(void);
 void PC_StatusInvalidate(void);
 void PC_StatusTick(void);
+
+unsigned PC_StatusGetMode(void);
+void PC_StatusSetMode(unsigned value);
+void PC_StatusRestoreBacklights(uint8_t lcd, uint8_t keyboard);
+void PC_StatusNotice(const char *message);

@@ -8,7 +8,7 @@ static unsigned reads[3],clears,draws;
 static int values[3]={75,180,0};
 static unsigned writes;
 static bool fail_write;
-static char battery[16],lcd[16],keyboard[16];
+static char battery[16],lcd[16],keyboard[16],notice[26];
 uint32_t PC_GetTicks(void){return now;}
 int PC_ReadStatusValue(PC_StatusValue f){reads[f]++;return values[f];}
 int PC_WriteBacklight(PC_StatusValue f,uint8_t value){
@@ -22,8 +22,9 @@ int PC_WriteBacklight(PC_StatusValue f,uint8_t value){
 void PC_SetRenderDrawColor(uint8_t r,uint8_t g,uint8_t b){(void)r;(void)g;(void)b;}
 void PC_RenderFillRect(const PC_Rect *r){
     assert(r && r->x>=0 && r->y>=0 && r->x+r->w<=320 && r->y+r->h<=26);
-    if(r->w==320){clears++;battery[0]=lcd[0]=keyboard[0]=0;}
+    if(r->w==320){clears++;battery[0]=lcd[0]=keyboard[0]=notice[0]=0;}
 }
+void PC_DrawText(int x,int y,const char *text){assert(x==6 && y==6 && strlen(text)<sizeof notice);strcpy(notice,text);}
 void PC_DrawTextSmall(int x,int y,const char *text){
     assert(y==7 && strlen(text)<16);draws++;
     if(x==274)strcpy(battery,text);
@@ -74,5 +75,13 @@ int main(void){
     assert(!strcmp(battery," --%"));
     before=reads[0];now+=59999;PC_StatusTick();assert(reads[0]==before);
     now++;values[0]=100;PC_StatusTick();assert(!strcmp(battery,"100%"));
+    PC_StatusSetMode(2);PC_StatusRestoreBacklights(192,32);PC_StatusTick();
+    assert(PC_StatusGetMode()==2 && !strcmp(lcd,"LCD: 80%") && !strcmp(keyboard,"KEY: 14%"));
+    PC_StatusNotice("SETTINGS SAVED FLASH");PC_StatusTick();
+    assert(!strcmp(notice,"SETTINGS SAVED FLASH") && !lcd[0]);
+    now+=2999;PC_StatusTick();assert(notice[0]);
+    now++;PC_StatusTick();assert(!notice[0] && lcd[0]);
+    PC_StatusSetMode(0);PC_StatusNotice("SAVED DATA CLEARED");PC_StatusTick();assert(notice[0]);
+    now+=3000;PC_StatusTick();assert(!notice[0] && !lcd[0]);
     puts("PASS: status cycle, percent values, polling limits, event-driven backlights, limits, hidden controls, errors and timer wrap");
 }

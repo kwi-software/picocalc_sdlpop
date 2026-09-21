@@ -8,6 +8,8 @@ subprocess.run(['sh','src/game/build_host.sh'],cwd=root,env=env,check=True)
 out=root/'build-host-game/captures';out.mkdir(exist_ok=True)
 store=out/'flash.bin'
 store.unlink(missing_ok=True)
+settings=out/'settings-flash.bin'
+settings.unlink(missing_ok=True)
 cases=[
  ('title',[],{'POP_FRAMES':'400'}),
  ('start',[],{'POP_SCENARIO':'start','POP_LEVEL_TEST':'1','POP_FRAMES':'100'}),
@@ -22,6 +24,10 @@ cases=[
  ('cheats',[],{'POP_SCENARIO':'cheats','POP_LEVEL_TEST':'1','POP_FRAMES':'100'}),
  ('save',['megahit','1'],{'POP_SCENARIO':'save','POP_FRAMES':'100','PRINCE_STORE_PATH':str(store)}),
  ('load',[],{'POP_SCENARIO':'load','POP_LEVEL_TEST':'6','POP_FRAMES':'100','PRINCE_STORE_PATH':str(store)}),
+ ('settings_save',[],{'POP_SCENARIO':'settings_save','POP_FRAMES':'400','PRINCE_STORE_PATH':str(settings)}),
+ ('settings_load',[],{'POP_SCENARIO':'settings_load','POP_FRAMES':'400','PRINCE_STORE_PATH':str(settings)}),
+ ('settings_reset',[],{'POP_SCENARIO':'settings_reset','POP_FRAMES':'400','PRINCE_STORE_PATH':str(settings)}),
+ ('settings_empty',[],{'POP_SCENARIO':'settings_empty','POP_FRAMES':'400','PRINCE_STORE_PATH':str(settings)}),
  ('attract',[],{'POP_FRAMES':'8000'}),
  ('heap_soak',[],{'POP_SCENARIO':'heap_soak','POP_FRAMES':'150000'}),
 ]

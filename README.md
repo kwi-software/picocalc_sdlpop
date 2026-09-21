@@ -77,7 +77,7 @@ For **PicoCalc UF2 Loader 2.5**, copy `build/prince_picocalc.uf2` to `/pico2-app
 
 To resume the installed game, power on normally or select its loader entry in **square brackets**. Selecting the UF2 file again reinstalls it and clears the flash fallback. **SD saves and scores survive firmware installation.**
 
-All game graphics, levels and sounds are embedded when compiling. Do not copy DAT files to the PicoCalc SD card for runtime loading: the game uses that card only for scores and the saved game.
+All game graphics, levels and sounds are embedded when compiling. Do not copy DAT files to the PicoCalc SD card for runtime loading: the game uses that card only for settings, scores and the saved game.
 
 ## Controls
 
@@ -85,12 +85,14 @@ All game graphics, levels and sounds are embedded when compiling. Do not copy DA
 |---|---|
 | Enter | Start the game |
 | F1 | Toggle 4:3 / 16:10; default 4:3 |
-| Tab | Cycle status bar: hidden (startup), battery, battery + display/keyboard brightness |
+| Tab | Cycle status bar: hidden (default), battery, battery + display/keyboard brightness |
 | `[` / `]` | Decrease / increase keyboard backlight |
 | `Alt+[` / `Alt+]` | Decrease / increase display backlight |
-| Ctrl+F | Toggle vertical filtering in 4:3; disabled on startup, ignored in 16:10 |
+| Ctrl+F | Toggle vertical filtering in 4:3; off by default, ignored in 16:10 |
 | F2 | Save game, preferring SD |
-| F3 | Toggle Megahit cheats; disabled on boot |
+| Alt+F2 | Save current settings, preferring SD |
+| Alt+Delete | Clear saved settings, high scores and game save; restore defaults |
+| F3 | Toggle Megahit cheats; off by default |
 | F4 | Load saved game, including from the title screen |
 | Shift, 1 or F5 | Action: grab, pick up items, fight, walk carefully |
 | Left / Right or I / P | Move |
@@ -105,7 +107,7 @@ All game graphics, levels and sounds are embedded when compiling. Do not copy DA
 | Ctrl+S | Toggle sound |
 | Ctrl+G / Ctrl+L | Save / load, in addition to F2/F4 |
 
-The 4:3 mode offers optional vertical area-weighted filtering to reduce uneven steps on diagonal edges. Text regions, including title lettering and the minutes display, use unfiltered scaling for readability. Ctrl+F disables/enables the filter for the remaining picture in 4:3. This setting survives aspect-ratio changes but resets to disabled at startup; Ctrl+F has no effect in 16:10. The 16:10 mode remains pixel-exact. LCD transfers remain two-byte RGB565.
+The 4:3 mode offers optional vertical area-weighted filtering to reduce uneven steps on diagonal edges. Text regions, including title lettering and the minutes display, use unfiltered scaling for readability. Ctrl+F disables/enables the filter for the remaining picture in 4:3. This setting survives aspect-ratio changes and can be saved with Alt+F2; without saved settings it starts disabled; Ctrl+F has no effect in 16:10. The 16:10 mode remains pixel-exact. LCD transfers remain two-byte RGB565.
 
 The optional status bar occupies the upper LCD margin without enlarging the game framebuffers. Battery charge is read when shown and every 60 seconds thereafter; brightness is read when entering the expanded view and after adjustments, with no periodic brightness polling. The bracket keys work even while the bar is hidden. Each press changes keyboard brightness by 32 and display brightness by 16, matching stock BIOS steps. The keyboard range is 0–224 and the display range is 16–240. These caps prevent BIOS rounding or wraparound from turning the keyboard light off. Brightness percentages are relative to each usable maximum: keyboard 224 and display 240 both show 100%. The native 11-pixel-high status text uses the labels `LCD:` and `KEY:` and matches the battery icon height. Values are displayed as percentages; unavailable readings show `--%`. Hidden status does not automatically poll the device, and unchanged values do not cause redraws.
 
@@ -141,11 +143,11 @@ The game creates `/Prince` automatically on a supported, writable FAT32 card. It
 - `/Prince/STATE0.BIN`
 - `/Prince/STATE1.BIN`
 
-Each checksummed snapshot contains both the six-entry high-score table and the saved game. Keep both files when making a backup. They are the port's binary snapshot format, not standalone DOS PRINCE.SAV/PRINCE.HOF files.
+Each checksummed snapshot contains the settings, six-entry high-score table and saved game. Keep both files when making a backup. They are the port's binary snapshot format, not standalone DOS PRINCE.SAV/PRINCE.HOF files.
 
-Successful saves report **GAME SAVED (SD)** or **GAME SAVED (FLASH)**. Flash is written only when SD saving fails: for example, no card, unsupported filesystem, read/write failure, read-only file, or insufficient space. FAT32 with an MBR or without a partition table is supported; GPT, exFAT, FAT16 and active-only/non-mirrored FAT configurations are not supported by this driver.
+Successful saves report **GAME SAVED (SD)** or **GAME SAVED (FLASH)**. For ordinary saves, flash is written only when SD saving fails: for example, no card, unsupported filesystem, read/write failure, read-only file, or insufficient space. FAT32 with an MBR or without a partition table is supported; GPT, exFAT, FAT16 and active-only/non-mirrored FAT configurations are not supported by this driver.
 
-Flash fallback changes are reconciled back onto SD when the card becomes usable. Scores and game saves have separate fallback revision markers, so an older flash score does not overwrite a newer SD-only score when a game save falls back to flash. Valid snapshots are checked before use and verified after writing. Alternating files protect the previous snapshot against an incomplete data write; FAT32 metadata and the card controller are not transactional. Do not remove the card or power during a save.
+Flash fallback changes are reconciled back onto SD when the card becomes usable. Settings, scores and game saves have separate fallback revision markers, so an older flash score does not overwrite a newer SD-only score when a game save falls back to flash. Valid snapshots are checked before use and verified after writing. Alternating files protect the previous snapshot against an incomplete data write; FAT32 metadata and the card controller are not transactional. Do not remove the card or power during a save.
 
 The implementation adapts Blair Leduc's `sdcard.c/.h` and `fat32.c/.h`, with fixes documented in `docs/INTEGRATION.md`. SPI0 uses GPIO16–19; card detect is active-low GPIO22. The LCD remains on SPI1. Storage runs on core 0; no FAT operations run in an interrupt callback.
 
@@ -153,7 +155,13 @@ The implementation adapts Blair Leduc's `sdcard.c/.h` and `fat32.c/.h`, with fix
 
 F2 saves in levels 1–14. It preserves the original game's level-start save semantics: level, remaining time and health capacity at the start of that level. **Loading restarts the saved level; it does not restore the exact room, position or animation frame.** There is one save slot. Titles and cutscenes are not saved. The high-score table is saved when the original game updates it.
 
-The flash fallback survives reset and power-off. Reinstalling this UF2 clears only the flash journal; SD files remain intact. To clear all progress, delete the two files under `/Prince` and reinstall the UF2, otherwise a remaining flash fallback can restore them.
+The flash fallback survives reset and power-off. Reinstalling this UF2 clears only the flash journal; SD files remain intact. Use **Alt+Delete** to clear settings, scores and the saved game together. This writes an empty snapshot and a reset marker to flash, even when SD works, then updates SD. It is a logical reset, not a secure erase or deletion of the snapshot files. If the card is absent or unwritable, the message **CLEARED - SD SYNC PENDING** is shown; old data on that card is ignored and replaced on the next successful storage access. Keep the reset marker in flash until synchronization completes: reinstalling the UF2 first removes that protection. The running level continues; its stored save is removed.
+
+### Saved settings
+
+Press **Alt+F2** to save the current aspect ratio, filter preference, sound on/off, cheats on/off, status-bar mode (hidden/battery/full), LCD backlight and keyboard backlight. Settings load automatically before the title sequence. Saving is explicit; later changes remain temporary until Alt+F2 is pressed again. A short message reports **SETTINGS SAVED SD**, **SETTINGS SAVED FLASH** or a failure. Backlight read failures prevent saving an incomplete settings record.
+
+The filter preference is retained in 16:10 but only affects 4:3. Defaults are 4:3, filter off, sound on, cheats off and status bar hidden. Alt+Delete immediately restores those defaults and sets LCD backlight to raw 176 (73%) and keyboard backlight to off. Without saved settings, startup leaves the existing hardware backlight levels unchanged. Older snapshots without a settings entry remain readable.
 
 ## Source layout
 

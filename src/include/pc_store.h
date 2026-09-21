@@ -4,11 +4,15 @@
 #include <stdint.h>
 #define PC_STORE_HOF 0
 #define PC_STORE_SAVE 1
+#define PC_STORE_SETTINGS 2
+#define PC_STORE_SETTINGS_SIZE 8u
 #define PC_STORE_HOF_SIZE 176u
 #define PC_STORE_SAVE_SIZE 8u
 #define PC_STORE_BYTES 8192u
 typedef enum {PC_STORE_NONE, PC_STORE_SD, PC_STORE_FLASH} PC_StoreBackend;
 PC_StoreBackend PC_StoreLastBackend(void);
+/* Commit a reset marker, including deferred cleanup of an absent SD card. */
+bool PC_StoreReset(void);
 bool PC_StoreRead(unsigned key, void *out, size_t bytes);
 bool PC_StoreWrite(unsigned key, const void *data, size_t bytes);
 /* Hardware boundary. Read pointer must reflect writable flash, not a constant. */
