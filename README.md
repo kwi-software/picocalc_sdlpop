@@ -85,7 +85,7 @@ All game graphics, levels and sounds are embedded when compiling. Do not copy DA
 |---|---|
 | Enter | Start the game |
 | F1 | Toggle 4:3 / 16:10; default 4:3 |
-| Ctrl+I | Toggle vertical filtering in 4:3; disabled on startup, ignored in 16:10 |
+| Ctrl+F | Toggle vertical filtering in 4:3; disabled on startup, ignored in 16:10 |
 | F2 | Save game, preferring SD |
 | F3 | Toggle Megahit cheats; disabled on boot |
 | F4 | Load saved game, including from the title screen |
@@ -102,9 +102,9 @@ All game graphics, levels and sounds are embedded when compiling. Do not copy DA
 | Ctrl+S | Toggle sound |
 | Ctrl+G / Ctrl+L | Save / load, in addition to F2/F4 |
 
-The 4:3 mode offers optional vertical area-weighted filtering to reduce uneven steps on diagonal edges. Text regions, including title lettering and the minutes display, use unfiltered scaling for readability. Ctrl+I disables/enables the filter for the remaining picture in 4:3. This setting survives aspect-ratio changes but resets to disabled at startup; Ctrl+I has no effect in 16:10. The 16:10 mode remains pixel-exact. LCD transfers remain two-byte RGB565.
+The 4:3 mode offers optional vertical area-weighted filtering to reduce uneven steps on diagonal edges. Text regions, including title lettering and the minutes display, use unfiltered scaling for readability. Ctrl+F disables/enables the filter for the remaining picture in 4:3. This setting survives aspect-ratio changes but resets to disabled at startup; Ctrl+F has no effect in 16:10. The 16:10 mode remains pixel-exact. LCD transfers remain two-byte RGB565.
 
-There is no help overlay. F1, F3 and Ctrl+I do not skip the title sequence. F5 and 1 are independent action inputs, not text modifiers. Releasing one action key does not cancel another held action key.
+There is no help overlay. F1, F3 and Ctrl+F do not skip the title sequence. F5 and 1 are independent action inputs, not text modifiers. Releasing one action key does not cancel another held action key.
 
 ### Cheat keys after F3
 

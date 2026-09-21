@@ -370,7 +370,7 @@ void process_events(void) {
   PC_Event e;
   while (PC_InputNext(&e)) {
     if(e.type==PC_INPUT_RESET)filter_key_held=false;
-    if(e.scancode==SDL_SCANCODE_I) {
+    if(e.scancode==SDL_SCANCODE_F) {
       if(e.type==PC_KEYUP && filter_key_held) {filter_key_held=false;continue;}
       if(e.type==PC_KEYDOWN && (filter_key_held || (e.modifiers&0xc0))) {
         if(!filter_key_held && !e.repeat) {

@@ -42,11 +42,11 @@ void PC_PumpEvents(void) {
   }
   if (scenario && !strcmp(scenario,"filter")) {
     static const struct {unsigned ms; uint8_t key,state;} keys[]={
-      {1000,0xa5,1},{1000,'i',1},{1100,'i',1},{1200,0xa5,3},{1200,'i',3},
+      {1000,0xa5,1},{1000,'f',1},{1100,'f',1},{1200,0xa5,3},{1200,'f',3},
       {2000,0x81,1},{2000,0x81,3},
-      {3000,0xa5,1},{3000,'i',1},{3100,'i',3},{3100,0xa5,3},
+      {3000,0xa5,1},{3000,'f',1},{3100,'f',3},{3100,0xa5,3},
       {4000,0x81,1},{4000,0x81,3},
-      {5000,0xa5,1},{5000,'i',1},{5100,'i',1},{5200,'i',3},{5200,0xa5,3}};
+      {5000,0xa5,1},{5000,'f',1},{5100,'f',1},{5200,'f',3},{5200,0xa5,3}};
     while(control_step<sizeof keys/sizeof keys[0] && now/1000>=keys[control_step].ms) {
       PC_InputFeed(keys[control_step].key,keys[control_step].state);control_step++;
     }
@@ -147,7 +147,7 @@ void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *p,
       filter_stage++;
       assert(filter_stage<5 && r->h==(int)heights[filter_stage] && filter->enabled==enabled[filter_stage]);
     }
-    assert(!key_states[SDL_SCANCODE_I]);
+    assert(!key_states[SDL_SCANCODE_F]);
   }
 
   for(int y=0;y<r->h;y++)
