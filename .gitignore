@@ -42,7 +42,8 @@ game_assets.json
 *.d
 *.pdb
 *.ilk
-/firmware/
+/[Ff]irmware/
+/.prince-tools/
 
 # Local editor/Python files.
 .idea/

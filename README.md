@@ -29,6 +29,47 @@ Additional EGA/CGA/MT-32 files may stay in the folder but are not embedded. The 
 
 Requirements: PicoCalc with a Pico 2 or Pico 2 W, **Pico SDK** (tested: 2.2.0 and 2.3.1), Arm GNU Toolchain (tested: 13.3.Rel1 and 15.2.Rel1), CMake 3.20 or newer, Ninja and Python 3. Asset generation uses only the Python standard library.
 
+### Automatic dependency setup and build
+
+First place the required DAT files in `PrinceFiles`. Then run one of these commands from the project directory:
+
+**Windows (PowerShell 5.1 or newer):**
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 pico2w
+# For the non-wireless board:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 pico2
+```
+
+Alternatively, double-click `build_pico2.cmd` or `build_pico2w.cmd`, or run the matching CMD file from Command Prompt. Each wrapper selects its board and locates `build.ps1` relative to itself, including paths with spaces. On failure it pauses so the error remains visible and returns the PowerShell exit code.
+
+The execution-policy option applies only to that process; managed policies may still prohibit scripts.
+
+**Linux:**
+
+```sh
+bash build.sh pico2w
+# For the non-wireless board:
+bash build.sh pico2
+```
+
+Omit the board argument to choose interactively. The scripts accept `pico2` and `pico2w`; the latter is translated to the SDK's `pico2_w` identifier.
+
+| Argument | Output |
+| --- | --- |
+| `pico2` | `Firmware/Prince_Pico2.uf2` |
+| `pico2w` | `Firmware/Prince_Pico2w.uf2` |
+
+The scripts check Python, CMake, Ninja, the Arm compiler/newlib, Pico SDK and native Pico tools. Suitable PATH tools and compatible Pico VS Code installations are reused. Missing build tools are downloaded into `%LOCALAPPDATA%\PrinceTools` on Windows or `.prince-tools` in this project on Linux; system PATH and existing SDK installations are not changed. SDK/picotool are pinned to 2.3.1. The fallback downloads use Arm GNU 13.3.Rel1, CMake 3.31.6 and Ninja 1.12.1 (1.13.1 on Linux Arm64). Downloads come from [Raspberry Pi](https://github.com/raspberrypi/pico-sdk-tools/releases), [Kitware](https://github.com/Kitware/CMake/releases), [Ninja](https://github.com/ninja-build/ninja/releases), [Arm](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) and [Python](https://www.python.org/downloads/release/python-31210/). GitHub-provided SHA-256 digests are checked when present.
+
+Windows can download a local embeddable Python 3.12.10 if no Python 3.9+ is available; it needs no administrator account. Linux installs missing Python and CA certificates through apt, dnf, pacman or zypper, using sudo when necessary. Run the Linux script as your normal user. Supported download hosts are 64-bit Windows and glibc-based Linux x86_64/aarch64; other systems can use the manual build below. On Windows Arm64 the downloaded Windows tools require x64 emulation. On older Linux installations, vendor tools may require newer shared libraries; an execution failure is reported before the firmware build where possible.
+
+The firmware does not use USB stdio, Wi-Fi or Bluetooth, so the downloaded SDK archive needs none of those optional submodules. Prebuilt `picotool` and `pioasm` are checked through CMake before configuring the game; no native Windows C/C++ compiler is needed for them.
+
+Each board uses its own `build-pico2` or `build-pico2w` directory. A fresh CMake configuration prevents stale SDK/board settings while retaining compiled outputs where possible. The UF2 is checked and copied to `Firmware` only after a successful build; a failed build leaves any previous output there untouched. The scripts build the firmware but do not flash the device. Downloads are cached for later runs. Internet access is required for missing dependencies; Downloads honor `HTTPS_PROXY`/`HTTP_PROXY`. On Windows, dependency downloads use PowerShell/.NET and Windows certificate-chain validation; without an explicit proxy variable they use the Windows default proxy settings. Certificate verification stays enabled. If Windows also rejects a certificate, fix the Windows trust chain or install the legitimate proxy CA through your administrator. If a corporate proxy blocks downloads, prepare the dependencies on an allowed connection or use the manual setup.
+
+Missing DAT files are reported before downloading the main toolchain. No game data is downloaded. To remove cached downloads and tools, delete `%LOCALAPPDATA%\PrinceTools` on Windows or `.prince-tools` on Linux; the scripts recreate the cache as needed. Set `PRINCE_TOOLS_PATH` to override the build-tool cache location, preferably a short local path. Windows uses extended paths while extracting archives and removes the redundant outer Arm toolchain directory to keep compiler paths short. Completed downloads in an older project-local `.prince-tools/downloads` directory are reused automatically; keep that directory until the next run finishes. The small Windows Python bootstrap still lives in the project-local `.prince-tools` directory. Both `.prince-tools` and `Firmware` are ignored by Git.
+
 ### Select the board
 
 The port does not use Wi-Fi, Bluetooth or the CYW43 library, so the Pico 2 without wireless is also an intended target. Select the matching SDK board when configuring:
@@ -73,7 +114,7 @@ The game arena reserves 164 KiB; core 0 has a 32 KiB stack and core 1 has 4 KiB.
 
 ## Install the firmware you built
 
-For **PicoCalc UF2 Loader 2.5**, copy `build/prince_picocalc.uf2` to `/pico2-apps/` on the SD card and select it in the loader. Alternatively, use BOOTSEL and copy the UF2 to the Pico's USB mass-storage drive.
+For **PicoCalc UF2 Loader 2.5**, copy the matching `Firmware/Prince_Pico2.uf2` or `Firmware/Prince_Pico2w.uf2` (manual build: `build/prince_picocalc.uf2`) to `/pico2-apps/` on the SD card and select it in the loader. Alternatively, use BOOTSEL and copy the UF2 to the Pico's USB mass-storage drive.
 
 To resume the installed game, power on normally or select its loader entry in **square brackets**. Selecting the UF2 file again reinstalls it and clears the flash fallback. **SD saves and scores survive firmware installation.**
 
