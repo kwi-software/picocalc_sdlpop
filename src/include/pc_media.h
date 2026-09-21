@@ -32,9 +32,20 @@ bool PC_PollEvent(PC_Event *event);
 void PC_SetRenderDrawColor(uint8_t r, uint8_t g, uint8_t b);
 void PC_RenderFillRect(const PC_Rect *rect);
 void PC_UpdateTexture(const PC_Rect *rect, const uint16_t *rgb565, unsigned pitch_bytes);
-/* Nearest-neighbor vertical scaling, full rectangle must be within LCD bounds. */
+/* One conservative text interval per source row; right is exclusive. */
+typedef struct { uint16_t left, right; } PC_TextSpan;
+typedef struct {
+    bool enabled;
+    const PC_TextSpan *text_rows;
+    unsigned source_x;
+} PC_VideoFilter;
+/* Vertical scaling: area-weighted RGB565 filtering for 200 -> 240, exact copy at 1:1,
+   nearest sampling otherwise. NULL filter enables filtering without text
+   exclusions. text_rows, if supplied, has 200 entries; source_x is the absolute
+   column of the first supplied pixel. Full rectangle must be within LCD bounds. */
 void PC_UpdateTextureScaledY(const PC_Rect *rect, const uint16_t *rgb565,
-                            unsigned pitch_bytes, unsigned source_height);
+                            unsigned pitch_bytes, unsigned source_height,
+                            const PC_VideoFilter *filter);
 void PC_RenderPresent(void);
 void PC_DrawText(int x, int y, const char *text);
 bool PC_OpenAudioDevice(const PC_AudioSpec *spec); /* launches core 1 once */

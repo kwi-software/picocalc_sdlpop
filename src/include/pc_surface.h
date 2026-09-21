@@ -31,3 +31,9 @@ bool PC_BlitSurface(const PC_Surface *src, const PC_Rect *source, PC_Surface *ds
                     PC_Rect *destination, PC_BlitOp op, bool flip_x, uint16_t mono_color);
 bool PC_PresentSurface(const PC_Surface *screen, const PC_Rect *dirty, int lcd_y);
 uint16_t PC_MapRGB(uint8_t r, uint8_t g, uint8_t b);
+
+/* Track the two game framebuffers without changing ROM surface metadata. */
+void PC_TrackTextSurface(unsigned slot, const PC_Surface *surface);
+const PC_TextSpan *PC_SurfaceTextRows(const PC_Surface *surface);
+void PC_MarkTextRect(const PC_Surface *surface, PC_Rect rect);
+void PC_FlipTextRows(const PC_Surface *surface);

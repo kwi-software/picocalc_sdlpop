@@ -570,6 +570,7 @@ void flip_screen(surface_type* surface) {
 			quit(1);
 		}
 		flip_not_ega((byte*) surface->pixels, surface->h, surface->pitch);
+		PC_FlipTextRows(surface);
 		SDL_UnlockSurface(surface);
 	} else {
 		// ...
@@ -709,6 +710,7 @@ int draw_text_character(byte character) {
 		image_type* image = font->chtab->images[character - font->first_char]; //char_ptrs[character - font->first_char];
 		if (image != NULL) {
 			method_3_blit_mono(image, textstate.current_x, textstate.current_y - font->height_above_baseline, textstate.textblit, textstate.textcolor);
+			PC_MarkTextRect(current_target_surface, (PC_Rect){textstate.current_x, textstate.current_y - font->height_above_baseline, image->w, image->h});
 			width = font->space_between_chars + image->w;
 		}
 	}

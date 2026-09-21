@@ -9,7 +9,7 @@
 #include "hardware/spi.h"
 #include "pc_media.h"
 #include "pico/stdlib.h"
-#include <limits.h>
+#include "pc_video_scale.h"
 #include <string.h>
 static int tx, rx;
 static uint16_t color, line[PC_LCD_WIDTH], discard;
@@ -161,19 +161,17 @@ void PC_UpdateTexture(const PC_Rect *rect, const uint16_t *rgb,
   end_window();
 }
 void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *rgb,
-                             unsigned pitch, unsigned source_height) {
+                             unsigned pitch, unsigned source_height, const PC_VideoFilter *filter) {
   if (!r || !rgb || !source_height || r->x < 0 || r->y < 0 || r->w <= 0 ||
       r->h <= 0 || r->w > 320 || r->h > 320 || r->x > 320 - r->w ||
       r->y > 320 - r->h || pitch < (unsigned)r->w * 2 || (pitch & 1))
     return;
   window(r->x, r->y, r->w, r->h);
-  unsigned prev = UINT_MAX;
   for (unsigned y = 0; y < (unsigned)r->h; y++) {
-    unsigned src = (uint64_t)y * source_height / (unsigned)r->h;
-    if (src != prev)
-      memcpy(line, (const uint8_t *)rgb + (size_t)src * pitch, r->w * 2);
+    pc_scale_rgb565_row(line, rgb, pitch, (unsigned)r->w,
+                       source_height, (unsigned)r->h, y, filter);
+    /* pixels() completes DMA before the shared line buffer is reused. */
     pixels(line, r->w);
-    prev = src;
   }
   end_window();
 }

@@ -17,6 +17,59 @@ static PC_Rect intersection(PC_Rect a, PC_Rect b) {
         return (PC_Rect){0};
     return (PC_Rect){(int)x, (int)y, (int)(r - x), (int)(bot - y)};
 }
+/* Two 200-row interval tables: 1600 bytes, no heap allocations. */
+static struct { const void *pixels; PC_TextSpan rows[200]; } text_frames[2];
+static PC_TextSpan *text_rows(const PC_Surface *s) {
+    if(s) for(unsigned i=0;i<2;i++)
+        if(s->pixels && s->pixels==text_frames[i].pixels)return text_frames[i].rows;
+    return NULL;
+}
+void PC_TrackTextSurface(unsigned slot,const PC_Surface *s) {
+    if(slot>=2)return;
+    text_frames[slot].pixels=s?s->pixels:NULL;
+    memset(text_frames[slot].rows,0,sizeof text_frames[slot].rows);
+}
+const PC_TextSpan *PC_SurfaceTextRows(const PC_Surface *s) {return text_rows(s);}
+static void add_span(PC_TextSpan *s,int left,int right) {
+    if(right<=left)return;
+    if(s->right<=s->left)*s=(PC_TextSpan){left,right};
+    else {if(left<s->left)s->left=left;if(right>s->right)s->right=right;}
+}
+static void clear_span(PC_TextSpan *s,int left,int right) {
+    if(left<=s->left && right>=s->right)*s=(PC_TextSpan){0};
+    else if(left<=s->left && right>s->left)s->left=right;
+    else if(left<s->right && right>=s->right)s->right=left;
+    /* An interior cut cannot be represented by one interval: keep the union.
+       This conservatively keeps the gap sharp until the next larger redraw. */
+}
+void PC_MarkTextRect(const PC_Surface *s,PC_Rect r) {
+    PC_TextSpan *rows=text_rows(s);if(!rows)return;
+    r=intersection(r,s->clip);r=intersection(r,(PC_Rect){0,0,s->w,s->h<200?s->h:200});
+    for(int y=r.y;y<r.y+r.h;y++)add_span(&rows[y],r.x,r.x+r.w);
+}
+void PC_FlipTextRows(const PC_Surface *s) {
+    PC_TextSpan *rows=text_rows(s);if(!rows || s->h>200)return;
+    for(int y=0;y<s->h/2;y++){PC_TextSpan t=rows[y];rows[y]=rows[s->h-1-y];rows[s->h-1-y]=t;}
+}
+static void copy_text_rows(const PC_Surface *s,PC_Surface *d,PC_Rect a,PC_Rect out,
+                           int sx,int sy,bool flip,bool opaque) {
+    PC_TextSpan *dst=text_rows(d),*src=text_rows(s);if(!dst)return;
+    int first=0,last=out.h,step=1;
+    if(src==dst && out.y>sy){first=out.h-1;last=-1;step=-1;}
+    for(int j=first;j!=last;j+=step) {
+        PC_TextSpan mark={0};
+        if(src && sy+j>=0 && sy+j<200)mark=src[sy+j];
+        int left=mark.left,right=mark.right;
+        if(flip){left=a.x+a.w-mark.right;right=a.x+a.w-mark.left;}
+        else {left-=sx;right-=sx;}
+        if(flip){left-=sx;right-=sx;}
+        if(left<0)left=0;
+        if(right>out.w)right=out.w;
+        int y=out.y+j;if(y<0 || y>=200)continue;
+        if(opaque)clear_span(&dst[y],out.x,out.x+out.w);
+        if(mark.right>mark.left && right>left)add_span(&dst[y],out.x+left,out.x+right);
+    }
+}
 bool PC_InitSurface(PC_Surface *s, int w, int h, unsigned pitch, PC_PixelFormat fmt,
                     const void *pixels, size_t bytes, bool writable) {
     if (!s || !pixels || w <= 0 || h <= 0 || w > 32767 || h > 32767 ||
@@ -53,7 +106,9 @@ bool PC_FillRect(PC_Surface *s, const PC_Rect *r, uint16_t value) {
     if (!s || !s->writable || (s->format == PC_INDEX8 && value > 255))
         return false;
     PC_Rect a = intersection(r ? *r : (PC_Rect){0, 0, s->w, s->h}, s->clip);
+    PC_TextSpan *marks=text_rows(s);
     for (int y = a.y; y < a.y + a.h; y++) {
+        if(marks && y<200)clear_span(&marks[y],a.x,a.x+a.w);
         uint8_t *row = (uint8_t *)(uintptr_t)s->pixels + (size_t)y * s->pitch;
         if (s->format == PC_INDEX8)
             memset(row + a.x, (uint8_t)value, a.w);
@@ -162,6 +217,8 @@ bool PC_BlitSurface(const PC_Surface *s, const PC_Rect *source, PC_Surface *d, P
             }
         }
     }
+    copy_text_rows(s,d,a,out,flip?(int)lo_x:(int)(a.x+lo_x),(int)(a.y+lo_y),
+                   flip,s->color_key<0 && op==PC_BLIT_COPY);
     if (dest)
         *dest = out;
     return true;

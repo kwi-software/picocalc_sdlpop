@@ -1,3 +1,4 @@
+#include "pc_video_scale.h"
 #include "common.h"
 #include "game_port.h"
 #include "keyboard_matrix.h"
@@ -15,6 +16,7 @@ static const char *scenario;
 static bool pending_release;
 static unsigned since_level;
 static unsigned aspect_clears, wide_frames, classic_frames;
+static unsigned filter_stage;
 static bool health_tested;
 static bool persistence_tested, cheats_tested;
 static void verify_cheats(void);
@@ -36,6 +38,17 @@ void PC_PumpEvents(void) {
     while (control_step < 5 && now / 1000 >= times[control_step]) {
       PC_InputFeed(0x81, states[control_step]);
       control_step++;
+    }
+  }
+  if (scenario && !strcmp(scenario,"filter")) {
+    static const struct {unsigned ms; uint8_t key,state;} keys[]={
+      {1000,0xa5,1},{1000,'i',1},{1100,'i',1},{1200,0xa5,3},{1200,'i',3},
+      {2000,0x81,1},{2000,0x81,3},
+      {3000,0xa5,1},{3000,'i',1},{3100,'i',3},{3100,0xa5,3},
+      {4000,0x81,1},{4000,0x81,3},
+      {5000,0xa5,1},{5000,'i',1},{5100,'i',1},{5200,'i',3},{5200,0xa5,3}};
+    while(control_step<sizeof keys/sizeof keys[0] && now/1000>=keys[control_step].ms) {
+      PC_InputFeed(keys[control_step].key,keys[control_step].state);control_step++;
     }
   }
   if (scenario && !strcmp(scenario, "load") && !control_step && now >= 3000000) {
@@ -115,7 +128,7 @@ void PC_DrawText(int x, int y, const char *text) {
   assert(!"Help must not be rendered");
 }
 void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *p,
-                             unsigned pitch, unsigned h) {
+                             unsigned pitch, unsigned h, const PC_VideoFilter *filter) {
   assert(r->x >= 0 && r->w > 0 && r->x + r->w <= 320);
   if(r->w < 320) partial_frames++;
   if (r->h == 240) {
@@ -126,14 +139,27 @@ void PC_UpdateTextureScaledY(const PC_Rect *r, const uint16_t *p,
     wide_frames++;
   }
   assert(p && pitch == 640 && h == 200);
-  for(int y=0;y<r->h;y++) {
-    const uint16_t *row=(const uint16_t *)((const uint8_t *)p+(unsigned)y*h/r->h*pitch);
-    memcpy(lcd+(r->y+y)*320+r->x,row,r->w*2);
+  if(scenario && !strcmp(scenario,"filter")) {
+    static const unsigned heights[]={240,240,200,240,240};
+    static const bool enabled[]={false,true,true,true,false};
+    assert(filter && filter_stage<5);
+    if(r->h!= (int)heights[filter_stage] || filter->enabled!=enabled[filter_stage]) {
+      filter_stage++;
+      assert(filter_stage<5 && r->h==(int)heights[filter_stage] && filter->enabled==enabled[filter_stage]);
+    }
+    assert(!key_states[SDL_SCANCODE_I]);
   }
+
+  for(int y=0;y<r->h;y++)
+    pc_scale_rgb565_row(lcd+(r->y+y)*320+r->x,p,pitch,r->w,h,r->h,y,filter);
   if(r->w<320) {
     const uint16_t *all=onscreen_surface_->pixels;
-    for(int y=0;y<r->h;y++)
-      assert(!memcmp(lcd+(r->y+y)*320,all+(unsigned)y*h/r->h*320,640));
+    uint16_t expected[320];
+    PC_VideoFilter full=filter?*filter:(PC_VideoFilter){true,NULL,0};full.source_x=0;
+    for(int y=0;y<r->h;y++) {
+      pc_scale_rgb565_row(expected,all,640,320,h,r->h,y,&full);
+      assert(!memcmp(lcd+(r->y+y)*320,expected,sizeof expected));
+    }
   }
 }
 void PC_RenderPresent(void) {}
@@ -221,6 +247,8 @@ void game_host_frame(void) {
         current_level, drawn_room, frames, game_heap_peak(), PC_MixerErrors());
     if (scenario && !strcmp(scenario, "aspect"))
       assert(aspect_clears == 2 && wide_frames && classic_frames);
+    else if(scenario && !strcmp(scenario,"filter"))
+      assert(aspect_clears==4 && filter_stage==4 && current_level==65535);
     else
       assert(aspect_clears == 0 && wide_frames == 0);
     if(frames>=8000) assert(partial_frames>0);

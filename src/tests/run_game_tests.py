@@ -13,6 +13,7 @@ cases=[
  ('start',[],{'POP_SCENARIO':'start','POP_LEVEL_TEST':'1','POP_FRAMES':'100'}),
  ('movement',['megahit','1'],{'POP_INPUT':'1','POP_FRAMES':'150'}),
  ('aspect',[],{'POP_SCENARIO':'aspect','POP_FRAMES':'400'}),
+ ('filter',[],{'POP_SCENARIO':'filter','POP_FRAMES':'400'}),
  ('health',['megahit','1'],{'POP_SCENARIO':'health','POP_FRAMES':'100'}),
  ('restart',['megahit','1'],{'POP_SCENARIO':'restart','POP_FRAMES':'300'}),
  ('transitions',['megahit','1'],{'POP_SCENARIO':'levels','POP_LEVEL_TEST':'14','POP_FRAMES':'80'}),

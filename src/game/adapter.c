@@ -138,6 +138,7 @@ static PC_Surface *new_frame(int w, int h) {
       if (!PC_InitSurface(s, w, h, 640, PC_RGB565, frame_pixels[i],
                           sizeof frame_pixels[i], true))
         game_fatal("FRAME INIT");
+      PC_TrackTextSurface(i,s);
       return s;
     }
   game_fatal("TOO MANY FRAMES");
@@ -149,6 +150,7 @@ void SDL_FreeSurface(SDL_Surface *s) {
   bool frame = false;
   for (unsigned i = 0; i < 2; i++)
     if (s->pixels == frame_pixels[i]) {
+      PC_TrackTextSurface(i,NULL);
       frame_used[i] = false;
       frame = true;
     }
@@ -230,11 +232,24 @@ void method_1_blit_rect(surface_type *t, surface_type *s, const rect_type *tr,
   if (!POP_CopyRect(t, s, rect(tr), rect(sr), blit != 0))
     game_fatal("COPY RECT");
 }
+/* These title/story resources contain lettering; backgrounds remain filtered. */
+static void mark_lettering_image(image_type *image,int x,int y) {
+  if(!image)return;
+  for(unsigned id=0;id<MAX_FULL_IMAGES;id++) {
+    if(id==TITLE_MAIN || id==STORY_FRAME)continue;
+    chtab_type *table=*full_image[id].chtab;
+    if(table && full_image[id].id<table->n_images && table->images[full_image[id].id]==image) {
+      PC_MarkTextRect(current_target_surface,(PC_Rect){x,y,image->w,image->h});
+      break;
+    }
+  }
+}
 image_type *method_3_blit_mono(image_type *s, int x, int y, int b, byte c) {
   (void)b;
   if (s && !POP_DrawImage(current_target_surface, s, x, y, 0x40, color565(c),
                           s == &mirrored))
     game_fatal("MONO BLIT");
+  mark_lettering_image(s,x,y);
   return s;
 }
 const rect_type *method_5_rect(const rect_type *r, int b, byte c) {
@@ -250,6 +265,7 @@ image_type *method_6_blit_img_to_scr(image_type *s, int x, int y, int blit) {
     fprintf(stderr, "blit=%d\n", blit);
     game_fatal("IMAGE BLIT");
   }
+  mark_lettering_image(s,x,y);
   return s;
 }
 void rect_to_sdlrect(const rect_type *r, SDL_Rect *p) {
@@ -295,6 +311,8 @@ void set_bg_attr(int index, int c) {
 }
 static bool widescreen; /* Default 4:3, F1 toggles 320x200 (16:10). */
 static bool aspect_dirty;
+static bool vertical_filter_enabled = false;
+static bool filter_key_held;
 static int present_left, present_right = 320;
 void game_present_columns(int left, int right) {
   if (left >= 0 && right > left && right <= 320) {
@@ -313,8 +331,9 @@ void update_screen(void) {
     }
     PC_Rect dst = {present_left, widescreen ? 60 : 40, present_right - present_left,
                    widescreen ? 200 : 240};
+    PC_VideoFilter filter={vertical_filter_enabled,PC_SurfaceTextRows(onscreen_surface_),present_left};
     PC_UpdateTextureScaledY(&dst, (const uint16_t *)onscreen_surface_->pixels + present_left,
-                            onscreen_surface_->pitch, 200);
+                            onscreen_surface_->pitch, 200, &filter);
     PC_RenderPresent();
     present_left = 0;
     present_right = 320;
@@ -350,6 +369,17 @@ void process_events(void) {
   PC_PumpEvents();
   PC_Event e;
   while (PC_InputNext(&e)) {
+    if(e.type==PC_INPUT_RESET)filter_key_held=false;
+    if(e.scancode==SDL_SCANCODE_I) {
+      if(e.type==PC_KEYUP && filter_key_held) {filter_key_held=false;continue;}
+      if(e.type==PC_KEYDOWN && (filter_key_held || (e.modifiers&0xc0))) {
+        if(!filter_key_held && !e.repeat) {
+          filter_key_held=true;
+          if(!widescreen){vertical_filter_enabled=!vertical_filter_enabled;aspect_dirty=true;}
+        }
+        continue; /* No movement, title skip, text input or cheat command. */
+      }
+    }
     if (e.scancode == SDL_SCANCODE_F1) {
       if (e.type == PC_KEYDOWN && !e.repeat) {
         widescreen = !widescreen;
